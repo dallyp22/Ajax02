@@ -2,6 +2,8 @@
 Configuration settings for RentRoll AI Optimizer backend.
 """
 import os
+import json
+import tempfile
 from typing import Optional
 
 from pydantic import Field
@@ -25,6 +27,9 @@ class Settings(BaseSettings):
     gcp_project_id: str = Field(default="rentroll-ai", description="GCP project ID")
     google_application_credentials: Optional[str] = Field(
         default=None, description="Path to service account key file"
+    )
+    google_application_credentials_json: Optional[str] = Field(
+        default=None, description="Service account key JSON string (for Railway)"
     )
     
     # BigQuery
@@ -86,6 +91,24 @@ class Settings(BaseSettings):
 # Global settings instance
 settings = Settings()
 
-# Set Google Cloud credentials if provided
-if settings.google_application_credentials:
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials 
+# Handle Google Cloud credentials for Railway deployment
+if settings.google_application_credentials_json:
+    # Railway: JSON credentials provided as environment variable
+    try:
+        credentials_dict = json.loads(settings.google_application_credentials_json)
+        # Create a temporary file with the credentials
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
+            json.dump(credentials_dict, f)
+            temp_creds_path = f.name
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_creds_path
+        print(f"🔑 Using JSON credentials from environment variable")
+    except json.JSONDecodeError as e:
+        print(f"❌ Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON: {e}")
+        raise
+elif settings.google_application_credentials:
+    # Local development: file path provided
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
+    print(f"🔑 Using credentials file: {settings.google_application_credentials}")
+else:
+    # Try Application Default Credentials (ADC)
+    print("🔑 Using Application Default Credentials (ADC)") 
