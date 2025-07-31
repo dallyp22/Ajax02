@@ -21,6 +21,30 @@ class BigQueryService:
         self.client = bigquery.Client(project=settings.gcp_project_id)
         self.staging_dataset = settings.bigquery_dataset_staging
         self.mart_dataset = settings.bigquery_dataset_mart
+        
+        # Dynamic table settings (can be overridden)
+        self._rentroll_table = None
+        self._competition_table = None
+        self._project_id = settings.gcp_project_id
+    
+    def set_table_settings(self, table_settings):
+        """Update table settings dynamically."""
+        self._rentroll_table = table_settings.rentroll_table
+        self._competition_table = table_settings.competition_table  
+        self._project_id = table_settings.project_id
+        logger.info(f"📊 Database service updated - Rentroll: {self._rentroll_table}, Competition: {self._competition_table}")
+    
+    def get_rentroll_table(self) -> str:
+        """Get current rentroll table name."""
+        if self._rentroll_table:
+            return self._rentroll_table
+        return f"{settings.gcp_project_id}.rentroll.Update_7_8_native"  # fallback
+    
+    def get_competition_table(self) -> str:
+        """Get current competition table name.""" 
+        if self._competition_table:
+            return self._competition_table
+        return f"{settings.gcp_project_id}.rentroll.Competition"  # fallback
     
     async def test_connection(self) -> bool:
         """Test BigQuery connection."""

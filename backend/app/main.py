@@ -29,9 +29,9 @@ from pydantic import BaseModel
 
 # Settings models
 class TableSettings(BaseModel):
-    rentroll_table: str = "rentroll-ai.rentroll.Update_7_8_native"
-    competition_table: str = "rentroll-ai.rentroll.Competition"
-    project_id: str = "rentroll-ai"
+    rentroll_table: str = os.getenv("BIGQUERY_RENTROLL_TABLE", "rentroll-ai.rentroll.Update_7_8_native")
+    competition_table: str = os.getenv("BIGQUERY_COMPETITION_TABLE", "rentroll-ai.rentroll.Competition")
+    project_id: str = os.getenv("GOOGLE_CLOUD_PROJECT", "rentroll-ai")
 
 class TestResult(BaseModel):
     success: bool
@@ -41,6 +41,37 @@ class TestResult(BaseModel):
 class ConnectionTestResponse(BaseModel):
     rentroll_table: TestResult
     competition_table: TestResult
+
+# Global effective settings
+_current_settings: Optional[TableSettings] = None
+
+def get_effective_settings() -> TableSettings:
+    """Get current effective settings (dynamic settings override environment variables)."""
+    global _current_settings
+    
+    # Try to load from file first (user's dynamic settings)
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, 'r') as f:
+                data = json.load(f)
+                _current_settings = TableSettings(**data)
+                logger.info(f"📝 Using dynamic settings: {_current_settings.rentroll_table}")
+                return _current_settings
+        except Exception as e:
+            logger.warning(f"Error loading dynamic settings: {e}")
+    
+    # Fallback to environment variables + defaults
+    if _current_settings is None:
+        _current_settings = TableSettings()
+        logger.info(f"🔧 Using environment/default settings: {_current_settings.rentroll_table}")
+    
+    return _current_settings
+
+def update_database_service_settings():
+    """Update the database service with current effective settings."""
+    effective_settings = get_effective_settings()
+    # Update the database service instance
+    db_service.set_table_settings(effective_settings)
 
 # Configure logging
 logging.basicConfig(
@@ -402,6 +433,9 @@ def save_settings(settings_data: TableSettings) -> bool:
     try:
         with open(SETTINGS_FILE, 'w') as f:
             json.dump(settings_data.dict(), f, indent=2)
+        # Update database service with new settings
+        update_database_service_settings()
+        logger.info(f"💾 Settings saved and database service updated")
         return True
     except Exception as e:
         logger.error(f"Error saving settings: {e}")
@@ -411,7 +445,7 @@ def save_settings(settings_data: TableSettings) -> bool:
 async def get_settings():
     """Get current table settings."""
     try:
-        return load_settings()
+        return get_effective_settings()
     except Exception as e:
         logger.error(f"Error getting settings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -420,12 +454,11 @@ async def get_settings():
 async def save_settings_endpoint(settings_data: TableSettings):
     """Save table settings."""
     try:
-        if save_settings(settings_data):
-            return {"success": True, "message": "Settings saved successfully"}
+        success = save_settings(settings_data)
+        if success:
+            return {"message": "Settings saved successfully", "settings": settings_data}
         else:
             raise HTTPException(status_code=500, detail="Failed to save settings")
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error saving settings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -461,6 +494,29 @@ async def test_table_connections(settings_data: TableSettings) -> ConnectionTest
     except Exception as e:
         logger.error(f"Error testing table connections: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Initialize database service with current settings on startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize application on startup."""
+    logger.info("🚀 Starting RentRoll AI Optimizer...")
+    
+    # Load and apply current effective settings
+    update_database_service_settings()
+    effective_settings = get_effective_settings()
+    
+    logger.info(f"📊 Active Configuration:")
+    logger.info(f"   Rentroll Table: {effective_settings.rentroll_table}")
+    logger.info(f"   Competition Table: {effective_settings.competition_table}")
+    logger.info(f"   Project ID: {effective_settings.project_id}")
+    
+    # Test BigQuery connection
+    connected = await db_service.test_connection()
+    if connected:
+        logger.info("✅ BigQuery connection successful")
+    else:
+        logger.warning("⚠️ BigQuery connection failed - check credentials and permissions")
 
 
 if __name__ == "__main__":

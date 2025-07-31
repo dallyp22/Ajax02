@@ -50,8 +50,8 @@
 
 ### Step 4: Test Your Deployment
 
-1. **Health Check**: Visit `https://your-app-production.up.railway.app/health`
-2. **API Docs**: Visit `https://your-app-production.up.railway.app/docs`
+1. **Health Check**: Visit `https://your-app.up.railway.app/health`
+2. **API Docs**: Visit `https://your-app.up.railway.app/docs`
 3. **Frontend**: Your Vercel app should now show real BigQuery data!
 
 ## 🎯 Why Railway?
@@ -62,6 +62,31 @@
 - ✅ **Great for Python/FastAPI**
 - ✅ **Affordable pricing**
 - ✅ **No complex configuration**
+
+## 🔧 Dynamic Settings System
+
+### ✨ **Best of Both Worlds!**
+Your AI Rent Optimizer has a **smart settings system**:
+
+1. **Railway Environment Variables** = **Default Tables**
+   - Set sensible defaults for initial deployment
+   - Ensure the app works immediately after deployment
+
+2. **Settings Page in App** = **Override Anytime**
+   - Change table IDs without redeployment
+   - Test new datasets instantly
+   - Perfect for multiple ownership companies
+
+### 📊 **How It Works:**
+1. **Deploy with your main tables** in Railway environment variables
+2. **Use the Settings tab** in the app to switch to different tables
+3. **No redeployment needed** - changes take effect immediately
+4. **Settings persist** across app restarts
+
+### 🏢 **Multi-Company Usage:**
+- **Company A**: Deploy once with their BigQuery tables as defaults
+- **Company B**: Same deployment, just change tables via Settings page
+- **Testing**: Switch between prod/staging tables instantly
 
 ## 🔐 Security Notes
 
@@ -76,5 +101,6 @@ Your team will have:
 - **Full optimization functionality** 
 - **Live updates** when you push to GitHub
 - **Production-ready deployment**
+- **Flexible table configuration** without redeployment
 
 The complete AI Rent Optimizer with your actual rental data! 🏠✨ 
