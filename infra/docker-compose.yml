@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # Backend API
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/rentroll-sa.json
+      - GCP_PROJECT_ID=rentroll-ai
+      - BIGQUERY_DATASET_STAGING=staging
+      - BIGQUERY_DATASET_MART=mart
+    volumes:
+      - ~/.config/gcloud/rentroll-sa.json:/app/credentials/rentroll-sa.json:ro
+      - ../backend/app:/app/app:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  default:
+    name: rentroll-ai-network 
