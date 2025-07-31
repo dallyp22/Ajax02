@@ -2,7 +2,30 @@
 
 ## Quick Railway Backend Deployment
 
-### Step 1: Prepare Your Service Account JSON
+### Step 1: Prepare Your Service Account Credentials
+
+#### **🎯 Method 1: Base64 Encoding (RECOMMENDED)**
+
+The most reliable way to avoid credential parsing issues:
+
+1. **Navigate to your project directory**:
+   ```bash
+   cd /path/to/your/BigQuery_6
+   ```
+
+2. **Run the encoding script**:
+   ```bash
+   python backend/encode_credentials.py ~/.config/gcloud/rentroll-sa.json
+   ```
+
+3. **Copy the base64 output** - it will look like:
+   ```
+   eyJ0eXBlIjoic2VydmljZV9hY2NvdW50IiwicHJvamVjdF9pZCI6InJlbnRyb2xsLWFpIiwicH...
+   ```
+
+#### **🔧 Method 2: JSON Minification (Alternative)**
+
+If you prefer the JSON approach:
 
 1. **Get your service account JSON** (the one you already have)
 2. **Minify it** - Remove all whitespace and newlines to make it a single line:
@@ -23,6 +46,22 @@
    - Select the `backend` folder as root directory
 
 4. **Set Environment Variables** in Railway dashboard:
+
+   **For Base64 Method (Recommended):**
+   ```
+   GOOGLE_APPLICATION_CREDENTIALS_BASE64=eyJ0eXBlIjoic2VydmljZV9hY2NvdW50...your-base64-string...
+   GOOGLE_CLOUD_PROJECT=rentroll-ai
+   BIGQUERY_RENTROLL_TABLE=rentroll-ai.rentroll.Update_7_8_native
+   BIGQUERY_COMPETITION_TABLE=rentroll-ai.rentroll.Competition
+   BIGQUERY_STAGING_DATASET=rentroll-ai.staging
+   BIGQUERY_MART_DATASET=rentroll-ai.mart
+   API_PREFIX=/api/v1
+   DEBUG=false
+   LOG_LEVEL=info
+   SECRET_KEY=your-secure-random-secret-key
+   ```
+
+   **For JSON Method (Alternative):**
    ```
    GOOGLE_APPLICATION_CREDENTIALS_JSON={"type":"service_account",...your minified JSON...}
    GOOGLE_CLOUD_PROJECT=rentroll-ai
@@ -40,10 +79,10 @@
 
 ### Step 3: Update Frontend for Railway Backend
 
-1. **Get your Railway URL** (e.g., `https://your-app-production.up.railway.app`)
+1. **Get your Railway URL** (e.g., `https://your-app.up.railway.app`)
 
 2. **Update Vercel Environment Variables**:
-   - `VITE_API_URL`: `https://your-app-production.up.railway.app/api/v1`
+   - `VITE_API_URL`: `https://your-app.up.railway.app/api/v1`
    - `VITE_DEMO_MODE`: `false`
 
 3. **Redeploy Vercel**: This will connect your frontend to the Railway backend
@@ -90,9 +129,21 @@ Your AI Rent Optimizer has a **smart settings system**:
 
 ## 🔐 Security Notes
 
-- Keep your `GOOGLE_APPLICATION_CREDENTIALS_JSON` secure
+- Keep your credentials secure (base64 or JSON)
 - Use a strong `SECRET_KEY`
 - Railway encrypts environment variables
+
+## 🐛 Troubleshooting
+
+### **Credential Issues**
+- ✅ **Use base64 method** - most reliable
+- ⚠️ **JSON method** - ensure private key `\n` characters are preserved
+- 🔍 **Check Railway logs** for specific error messages
+
+### **Connection Issues**
+- Verify BigQuery table names are correct
+- Check Google Cloud permissions
+- Ensure service account has BigQuery access
 
 ## 📱 Once Deployed
 

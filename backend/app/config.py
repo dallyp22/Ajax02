@@ -4,6 +4,7 @@ Configuration settings for RentRoll AI Optimizer backend.
 import os
 import json
 import tempfile
+import base64
 from typing import Optional
 
 from pydantic import Field
@@ -30,6 +31,9 @@ class Settings(BaseSettings):
     )
     google_application_credentials_json: Optional[str] = Field(
         default=None, description="Service account key JSON string (for Railway)"
+    )
+    google_application_credentials_base64: Optional[str] = Field(
+        default=None, description="Service account key JSON base64-encoded (alternative)"
     )
     
     # BigQuery
@@ -92,18 +96,63 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # Handle Google Cloud credentials for Railway deployment
-if settings.google_application_credentials_json:
+if settings.google_application_credentials_base64:
+    # Base64 encoded credentials (most reliable for Railway)
+    try:
+        decoded_json = base64.b64decode(settings.google_application_credentials_base64).decode('utf-8')
+        credentials_dict = json.loads(decoded_json)
+        
+        # Create a temporary file with the credentials
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
+            json.dump(credentials_dict, f, indent=2)
+            temp_creds_path = f.name
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_creds_path
+        print(f"🔑 Using base64-encoded credentials")
+        
+        # Validate the credentials work
+        try:
+            from google.auth import load_credentials_from_file
+            creds, project = load_credentials_from_file(temp_creds_path)
+            print(f"✅ Credentials validated for project: {project}")
+        except Exception as e:
+            print(f"⚠️  Credential validation failed: {e}")
+            
+    except Exception as e:
+        print(f"❌ Failed to decode base64 credentials: {e}")
+        raise
+        
+elif settings.google_application_credentials_json:
     # Railway: JSON credentials provided as environment variable
     try:
         credentials_dict = json.loads(settings.google_application_credentials_json)
+        
+        # Fix private key formatting - ensure proper newlines
+        if "private_key" in credentials_dict:
+            private_key = credentials_dict["private_key"]
+            # Replace literal \n with actual newlines if needed
+            if "\\n" in private_key:
+                credentials_dict["private_key"] = private_key.replace("\\n", "\n")
+        
         # Create a temporary file with the credentials
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
-            json.dump(credentials_dict, f)
+            json.dump(credentials_dict, f, indent=2)
             temp_creds_path = f.name
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = temp_creds_path
         print(f"🔑 Using JSON credentials from environment variable")
+        
+        # Validate the credentials work
+        try:
+            from google.auth import load_credentials_from_file
+            creds, project = load_credentials_from_file(temp_creds_path)
+            print(f"✅ Credentials validated for project: {project}")
+        except Exception as e:
+            print(f"⚠️  Credential validation failed: {e}")
+            
     except json.JSONDecodeError as e:
         print(f"❌ Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON: {e}")
+        raise
+    except Exception as e:
+        print(f"❌ Failed to setup credentials: {e}")
         raise
 elif settings.google_application_credentials:
     # Local development: file path provided
