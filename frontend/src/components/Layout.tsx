@@ -16,6 +16,9 @@ import {
   Avatar,
   Chip,
   Divider,
+  Menu,
+  MenuItem,
+  ListItemAvatar,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -25,8 +28,11 @@ import {
   Settings,
   Speed as SpeedIcon,
   Visibility as VisibilityIcon,
+  AccountCircle,
+  Logout,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 const drawerWidth = 280;
 
@@ -36,13 +42,28 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setUserMenuAnchor(event.currentTarget);
+  };
+
+  const handleUserMenuClose = () => {
+    setUserMenuAnchor(null);
+  };
+
+  const handleLogout = () => {
+    logout();
+    handleUserMenuClose();
   };
 
   const menuItems = [
@@ -344,7 +365,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Chip
               size="small"
-              label="ENTERPRISE"
+              label={user?.role?.toUpperCase() || "USER"}
               sx={{
                 backgroundColor: 'rgba(42, 157, 143, 0.2)',
                 color: '#2A9D8F',
@@ -353,18 +374,89 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 border: '1px solid rgba(42, 157, 143, 0.3)',
               }}
             />
-            <Avatar
-              sx={{
-                width: 32,
-                height: 32,
-                background: 'linear-gradient(135deg, #01D1D1 0%, #2A9D8F 100%)',
-                color: '#000',
-                fontSize: '0.875rem',
-                fontWeight: 600,
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', display: { xs: 'none', sm: 'block' } }}>
+                {user?.username}
+              </Typography>
+              <IconButton
+                onClick={handleUserMenuOpen}
+                sx={{
+                  p: 0.5,
+                  '&:hover': {
+                    backgroundColor: 'rgba(1, 209, 209, 0.1)',
+                  }
+                }}
+              >
+                <Avatar
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    background: 'linear-gradient(135deg, #01D1D1 0%, #2A9D8F 100%)',
+                    color: '#000',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  {user?.username?.charAt(0).toUpperCase()}
+                </Avatar>
+              </IconButton>
+            </Box>
+
+            <Menu
+              anchorEl={userMenuAnchor}
+              open={Boolean(userMenuAnchor)}
+              onClose={handleUserMenuClose}
+              PaperProps={{
+                sx: {
+                  backgroundColor: 'rgba(42, 42, 48, 0.95)',
+                  backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(1, 209, 209, 0.2)',
+                  borderRadius: '12px',
+                  mt: 1,
+                  minWidth: 200,
+                },
               }}
             >
-              AI
-            </Avatar>
+              <MenuItem disabled sx={{ opacity: 1 }}>
+                <ListItemAvatar>
+                  <Avatar
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      background: 'linear-gradient(135deg, #01D1D1 0%, #2A9D8F 100%)',
+                      color: '#000',
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {user?.username?.charAt(0).toUpperCase()}
+                  </Avatar>
+                </ListItemAvatar>
+                <Box>
+                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 600 }}>
+                    {user?.username}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+                    {user?.role}
+                  </Typography>
+                </Box>
+              </MenuItem>
+              <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+              <MenuItem
+                onClick={handleLogout}
+                sx={{
+                  color: '#F4A261',
+                  '&:hover': {
+                    backgroundColor: 'rgba(244, 162, 97, 0.1)',
+                  }
+                }}
+              >
+                <ListItemIcon sx={{ color: '#F4A261' }}>
+                  <Logout fontSize="small" />
+                </ListItemIcon>
+                <Typography variant="body2">Logout</Typography>
+              </MenuItem>
+            </Menu>
           </Box>
         </Toolbar>
       </AppBar>
