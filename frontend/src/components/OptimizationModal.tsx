@@ -47,7 +47,6 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiService } from '@/services/api';
 import {
-  Unit,
   OptimizationStrategy,
   OptimizeRequest,
   OptimizationResult,

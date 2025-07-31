@@ -28,7 +28,6 @@ import {
   Settings,
   Speed as SpeedIcon,
   Visibility as VisibilityIcon,
-  AccountCircle,
   Logout,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';

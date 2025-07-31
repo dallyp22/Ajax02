@@ -94,7 +94,6 @@ const UnitsPage: React.FC = () => {
       field: 'unit_id',
       headerName: 'Unit ID',
       width: 120,
-      pinned: 'left',
     },
     {
       field: 'property',
@@ -248,8 +247,7 @@ const UnitsPage: React.FC = () => {
           columns={columns}
           loading={isLoading}
           pagination
-          page={page}
-          pageSize={pageSize}
+          paginationModel={{ page, pageSize }}
           rowCount={unitsData?.total_count || 0}
           paginationMode="server"
           onPaginationModelChange={(model) => {

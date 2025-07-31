@@ -49,12 +49,12 @@ const DashboardPage: React.FC = () => {
     queryFn: () => apiService.getPortfolioAnalytics(),
   });
 
-  const { data: marketData, isLoading: marketLoading } = useQuery({
+  const { data: marketData } = useQuery({
     queryKey: ['market-position'],
     queryFn: () => apiService.getMarketPosition(),
   });
 
-  const { data: opportunitiesData, isLoading: opportunitiesLoading } = useQuery({
+  const { data: opportunitiesData } = useQuery({
     queryKey: ['pricing-opportunities'],
     queryFn: () => apiService.getPricingOpportunities(),
   });
@@ -471,7 +471,7 @@ const DashboardPage: React.FC = () => {
                   Market Position Analysis
                 </Typography>
                 <Box>
-                  {marketSummary.map((item: any, index: number) => (
+                  {marketSummary.map((item: any) => (
                     <Box key={item.market_position} mb={2}>
                       <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                         <Typography variant="body2">
