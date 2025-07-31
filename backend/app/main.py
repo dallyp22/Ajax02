@@ -356,17 +356,6 @@ async def batch_optimize(request: BatchOptimizeRequest, background_tasks: Backgr
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get(f"{settings.api_prefix}/properties")
-async def get_properties():
-    """Get list of all properties."""
-    try:
-        properties = await db_service.get_properties()
-        return {"properties": properties}
-    except Exception as e:
-        logger.error(f"Error getting properties: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get(f"{settings.api_prefix}/summary")
 async def get_summary():
     """Get portfolio summary statistics."""
@@ -411,6 +400,85 @@ async def get_pricing_opportunities():
         return opportunities
     except Exception as e:
         logger.error(f"Error getting pricing opportunities: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Property-specific analytics endpoints
+@app.get(f"{settings.api_prefix}/properties")
+async def get_properties():
+    """Get list of all properties in the portfolio."""
+    try:
+        properties = await db_service.get_properties()
+        return {"properties": properties}
+    except Exception as e:
+        logger.error(f"Error getting properties: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get(f"{settings.api_prefix}/test-property/{{property_name}}")
+async def test_property_filter(property_name: str):
+    """Test property filtering for debugging."""
+    try:
+        from urllib.parse import unquote
+        decoded_property_name = unquote(property_name)
+        result = await db_service.test_property_filter(decoded_property_name)
+        return result
+    except Exception as e:
+        logger.error(f"Error in test property filter for {property_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get(f"{settings.api_prefix}/test-competition")
+async def test_competition_data():
+    """Test competition data structure for debugging."""
+    try:
+        result = await db_service.test_competition_data()
+        return result
+    except Exception as e:
+        logger.error(f"Error in test competition data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(f"{settings.api_prefix}/analytics/property/{{property_name}}/competition")
+async def get_property_competition_analysis(property_name: str):
+    """Get comprehensive property vs competition analysis."""
+    try:
+        # URL decode the property name
+        from urllib.parse import unquote
+        decoded_property_name = unquote(property_name)
+        
+        analysis = await db_service.get_property_vs_competition_analysis(decoded_property_name)
+        return analysis
+    except Exception as e:
+        logger.error(f"Error getting property competition analysis for {property_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(f"{settings.api_prefix}/analytics/property/{{property_name}}/units")
+async def get_property_units_analysis(property_name: str):
+    """Get detailed unit-level analysis for a specific property."""
+    try:
+        # URL decode the property name
+        from urllib.parse import unquote
+        decoded_property_name = unquote(property_name)
+        
+        analysis = await db_service.get_property_unit_analysis(decoded_property_name)
+        return analysis
+    except Exception as e:
+        logger.error(f"Error getting property units analysis for {property_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(f"{settings.api_prefix}/analytics/property/{{property_name}}/market-trends")
+async def get_property_market_trends(property_name: str):
+    """Get market trend analysis for a specific property."""
+    try:
+        # URL decode the property name
+        from urllib.parse import unquote
+        decoded_property_name = unquote(property_name)
+        
+        trends = await db_service.get_property_market_trends(decoded_property_name)
+        return trends
+    except Exception as e:
+        logger.error(f"Error getting property market trends for {property_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

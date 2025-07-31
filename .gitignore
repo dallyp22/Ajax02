@@ -19,6 +19,8 @@ frontend/build/
 .env.production.local
 backend/.env
 frontend/.env
+.env.railway
+*.env.railway
 
 # Python
 __pycache__/
@@ -38,25 +40,42 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
-backend/venv/
-backend/.venv/
+
+# Virtual environments
 venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 .venv/
 
-# IDE
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.DS_Store
+Thumbs.db
 
-# OS
+# Log files
+*.log
+logs/
+backend/*.log
+frontend/*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -65,30 +84,41 @@ venv/
 ehthumbs.db
 Thumbs.db
 
-# Logs
-*.log
-logs/
+# Coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
 
-# Runtime data
-pids/
+# Deployment specific
+docker-compose.override.yml
 *.pid
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
+# Development scripts and helpers
+dev.py
+test_imports.py
+encode_credentials.py
+backend/dev.py
+backend/test_imports.py
+backend/encode_credentials.py
 
-# Temporary folders
-tmp/
-temp/
+# Railway and deployment configs (if not actively using)
+railway.toml
+.railway/
 
-# BigQuery credentials (keep secure)
-*.json
-!package.json
-!package-lock.json
-!tsconfig.json
-!vite.config.ts
+# JetBrains IDEs
+.idea/
 
-# Application settings
+# Testing artifacts
+.nyc_output
+
+# Application specific settings that should not be shared
 app_settings.json 
