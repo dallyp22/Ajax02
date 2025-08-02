@@ -25,14 +25,16 @@ class BigQueryService:
         # Dynamic table settings (can be overridden)
         self._rentroll_table = None
         self._competition_table = None
+        self._archive_table = None
         self._project_id = settings.gcp_project_id
     
     def set_table_settings(self, table_settings):
         """Update table settings dynamically."""
         self._rentroll_table = table_settings.rentroll_table
         self._competition_table = table_settings.competition_table  
+        self._archive_table = table_settings.archive_table
         self._project_id = table_settings.project_id
-        logger.info(f"📊 Database service updated - Rentroll: {self._rentroll_table}, Competition: {self._competition_table}")
+        logger.info(f"📊 Database service updated - Rentroll: {self._rentroll_table}, Competition: {self._competition_table}, Archive: {self._archive_table}")
     
     def get_rentroll_table(self) -> str:
         """Get current rentroll table name."""
@@ -45,6 +47,12 @@ class BigQueryService:
         if self._competition_table:
             return self._competition_table
         return f"{settings.gcp_project_id}.rentroll.Competition"  # fallback
+    
+    def get_archive_table(self) -> str:
+        """Get current archive table name."""
+        if self._archive_table:
+            return self._archive_table
+        return f"{settings.gcp_project_id}.rentroll.ArchiveAptMain"  # fallback
     
     async def test_connection(self) -> bool:
         """Test BigQuery connection."""
@@ -1213,6 +1221,515 @@ class BigQueryService:
             
         except Exception as e:
             logger.error(f"Error testing competition data: {e}")
+            raise
+
+    async def get_svsn_benchmark_analysis(self, bedroom_type: Optional[str] = None) -> Dict:
+        """Get benchmark bar charts comparing NuStyle vs Competition by bedroom type."""
+        try:
+            bedroom_filter = ""
+            if bedroom_type:
+                bedroom_filter = f"AND Bedrooms = '{bedroom_type}'"
+            
+            query = f"""
+            WITH benchmark_data AS (
+              SELECT
+                Property_Type,
+                Reporting_Property_Name,
+                Bedrooms,
+                COUNT(*) as unit_count,
+                AVG(Market_Rent) as avg_market_rent,
+                AVG(Market_Rent_PSF) as avg_market_rent_psf,
+                AVG(Avg__Sq__Ft_) as avg_sq_ft
+              FROM `rentroll-ai.rentroll.SvSN`
+              WHERE Market_Rent > 0 
+                AND Avg__Sq__Ft_ > 0 
+                {bedroom_filter}
+              GROUP BY Property_Type, Reporting_Property_Name, Bedrooms
+            )
+            SELECT
+              Property_Type,
+              Reporting_Property_Name,
+              Bedrooms,
+              unit_count,
+              ROUND(avg_market_rent, 0) as avg_market_rent,
+              ROUND(avg_market_rent_psf, 2) as avg_market_rent_psf,
+              ROUND(avg_sq_ft, 0) as avg_sq_ft
+            FROM benchmark_data
+            ORDER BY Bedrooms, Property_Type, avg_market_rent DESC
+            """
+            
+            result = self.client.query(query).to_dataframe()
+            data = result.to_dict(orient='records')
+            
+            logger.info(f"SvSN benchmark analysis returned {len(data)} property segments")
+            
+            return {
+                'benchmark_data': data,
+                'bedroom_type': bedroom_type or 'All'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching SvSN benchmark analysis: {e}")
+            raise
+
+    async def get_svsn_vacancy_analysis(self, bedroom_type: Optional[str] = None) -> Dict:
+        """Get vacancy performance analysis by bedroom type."""
+        try:
+            bedroom_filter = ""
+            if bedroom_type:
+                bedroom_filter = f"AND Bedrooms = '{bedroom_type}'"
+            
+            query = f"""
+            WITH vacancy_metrics AS (
+              SELECT
+                Property_Type,
+                Reporting_Property_Name,
+                Bedrooms,
+                COUNT(*) as total_units,
+                AVG(Days_Vacant) as avg_days_vacant,
+                SUM(CASE WHEN Days_Vacant > 30 THEN 1 ELSE 0 END) as units_vacant_30plus,
+                ROUND(SUM(CASE WHEN Days_Vacant > 30 THEN 1 ELSE 0 END) / COUNT(*) * 100, 1) as pct_vacant_30plus
+              FROM `rentroll-ai.rentroll.SvSN`
+              WHERE Days_Vacant IS NOT NULL 
+                {bedroom_filter}
+              GROUP BY Property_Type, Reporting_Property_Name, Bedrooms
+            )
+            SELECT
+              Property_Type,
+              Reporting_Property_Name,
+              Bedrooms,
+              total_units,
+              ROUND(avg_days_vacant, 1) as avg_days_vacant,
+              units_vacant_30plus,
+              pct_vacant_30plus
+            FROM vacancy_metrics
+            ORDER BY Bedrooms, Property_Type, avg_days_vacant DESC
+            """
+            
+            result = self.client.query(query).to_dataframe()
+            data = result.to_dict(orient='records')
+            
+            logger.info(f"SvSN vacancy analysis returned {len(data)} property segments")
+            
+            return {
+                'vacancy_data': data,
+                'bedroom_type': bedroom_type or 'All'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching SvSN vacancy analysis: {e}")
+            raise
+
+    async def get_svsn_rent_spread_analysis(self) -> Dict:
+        """Get rent spread analysis for NuStyle units only (Advertised vs Market rent)."""
+        try:
+            query = f"""
+            WITH rent_spread AS (
+              SELECT
+                Reporting_Property_Name,
+                Unit,
+                Bedrooms,
+                Market_Rent,
+                Advertised_Rent,
+                Days_Vacant,
+                ROUND((Market_Rent - Advertised_Rent) / NULLIF(Market_Rent, 0) * 100, 1) as pct_below_market,
+                CASE 
+                  WHEN (Market_Rent - Advertised_Rent) / NULLIF(Market_Rent, 0) * 100 > 10 THEN 'HIGH_OPPORTUNITY'
+                  WHEN (Market_Rent - Advertised_Rent) / NULLIF(Market_Rent, 0) * 100 > 5 THEN 'MODERATE_OPPORTUNITY'
+                  ELSE 'AT_MARKET'
+                END as opportunity_level
+              FROM `rentroll-ai.rentroll.SvSN`
+              WHERE Property_Type = 'Nustyle'
+                AND Market_Rent > 0 
+                AND Advertised_Rent > 0
+            )
+            SELECT
+              Reporting_Property_Name,
+              Unit,
+              Bedrooms,
+              Market_Rent,
+              Advertised_Rent,
+              Days_Vacant,
+              pct_below_market,
+              opportunity_level,
+              CASE 
+                WHEN opportunity_level = 'HIGH_OPPORTUNITY' AND Days_Vacant <= 10 THEN 'Raise Rent'
+                WHEN opportunity_level IN ('HIGH_OPPORTUNITY', 'MODERATE_OPPORTUNITY') AND Days_Vacant > 30 THEN 'Lower Rent'
+                WHEN opportunity_level = 'AT_MARKET' THEN 'Monitor'
+                ELSE 'Review'
+              END as suggested_action
+            FROM rent_spread
+            ORDER BY pct_below_market DESC, Days_Vacant ASC
+            """
+            
+            result = self.client.query(query).to_dataframe()
+            data = result.to_dict(orient='records')
+            
+            # Calculate summary statistics
+            high_opp_count = len([x for x in data if x['opportunity_level'] == 'HIGH_OPPORTUNITY'])
+            mod_opp_count = len([x for x in data if x['opportunity_level'] == 'MODERATE_OPPORTUNITY'])
+            total_potential = sum(x['Market_Rent'] - x['Advertised_Rent'] for x in data if x['pct_below_market'] > 5)
+            
+            logger.info(f"SvSN rent spread analysis returned {len(data)} NuStyle units")
+            
+            return {
+                'rent_spread_data': data,
+                'summary': {
+                    'total_units': len(data),
+                    'high_opportunity_units': high_opp_count,
+                    'moderate_opportunity_units': mod_opp_count,
+                    'total_monthly_potential': total_potential,
+                    'total_annual_potential': total_potential * 12
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching SvSN rent spread analysis: {e}")
+            raise
+
+    async def get_svsn_market_rent_clustering(self, bedroom_type: Optional[str] = None) -> Dict:
+        """Get market rent clustering analysis with rent buckets."""
+        try:
+            bedroom_filter = ""
+            if bedroom_type:
+                bedroom_filter = f"AND Bedrooms = '{bedroom_type}'"
+            
+            query = f"""
+            WITH rent_buckets AS (
+              SELECT
+                Property_Type,
+                Bedrooms,
+                CASE 
+                  WHEN Market_Rent < 1000 THEN 'Under $1,000'
+                  WHEN Market_Rent < 1200 THEN '$1,000-$1,199'
+                  WHEN Market_Rent < 1400 THEN '$1,200-$1,399'
+                  WHEN Market_Rent < 1600 THEN '$1,400-$1,599'
+                  WHEN Market_Rent < 1800 THEN '$1,600-$1,799'
+                  WHEN Market_Rent < 2000 THEN '$1,800-$1,999'
+                  ELSE '$2,000+'
+                END as rent_bucket,
+                COUNT(*) as unit_count,
+                AVG(Days_Vacant) as avg_days_vacant
+              FROM `rentroll-ai.rentroll.SvSN`
+              WHERE Market_Rent > 0 
+                {bedroom_filter}
+              GROUP BY Property_Type, Bedrooms, rent_bucket
+            )
+            SELECT
+              Property_Type,
+              Bedrooms,
+              rent_bucket,
+              unit_count,
+              ROUND(avg_days_vacant, 1) as avg_days_vacant
+            FROM rent_buckets
+            ORDER BY Bedrooms, 
+              CASE rent_bucket
+                WHEN 'Under $1,000' THEN 1
+                WHEN '$1,000-$1,199' THEN 2
+                WHEN '$1,200-$1,399' THEN 3
+                WHEN '$1,400-$1,599' THEN 4
+                WHEN '$1,600-$1,799' THEN 5
+                WHEN '$1,800-$1,999' THEN 6
+                ELSE 7
+              END,
+              Property_Type
+            """
+            
+            result = self.client.query(query).to_dataframe()
+            data = result.to_dict(orient='records')
+            
+            logger.info(f"SvSN market rent clustering returned {len(data)} rent bucket segments")
+            
+            return {
+                'clustering_data': data,
+                'bedroom_type': bedroom_type or 'All'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching SvSN market rent clustering: {e}")
+            raise
+
+    async def get_svsn_optimization_recommendations(self) -> Dict:
+        """Get optimization recommendations for NuStyle units."""
+        try:
+            query = f"""
+            WITH unit_analysis AS (
+              SELECT
+                Unit,
+                Bedrooms,
+                Market_Rent,
+                Advertised_Rent,
+                Days_Vacant,
+                ROUND((Market_Rent - Advertised_Rent) / NULLIF(Market_Rent, 0) * 100, 1) as pct_below_market,
+                Market_Rent - Advertised_Rent as rent_gap
+              FROM `rentroll-ai.rentroll.SvSN`
+              WHERE Property_Type = 'Nustyle'
+                AND Market_Rent > 0 
+                AND Advertised_Rent > 0
+            )
+            SELECT
+              Unit,
+              Bedrooms,
+              Market_Rent,
+              Advertised_Rent,
+              Days_Vacant,
+              pct_below_market,
+              rent_gap,
+              CASE 
+                WHEN pct_below_market > 10 AND Days_Vacant <= 15 THEN 'Raise rent to market'
+                WHEN pct_below_market > 5 AND Days_Vacant <= 30 THEN 'Consider modest increase'
+                WHEN Days_Vacant > 60 AND pct_below_market < 5 THEN 'Lower rent for faster lease'
+                WHEN Days_Vacant > 30 AND pct_below_market < 10 THEN 'Review pricing strategy'
+                ELSE 'Monitor current pricing'
+              END as suggested_action,
+              CASE 
+                WHEN pct_below_market > 10 AND Days_Vacant <= 15 THEN 'HIGH'
+                WHEN pct_below_market > 5 AND Days_Vacant <= 30 THEN 'MEDIUM'
+                WHEN Days_Vacant > 60 THEN 'HIGH'
+                ELSE 'LOW'
+              END as priority
+            FROM unit_analysis
+            WHERE pct_below_market IS NOT NULL
+            ORDER BY 
+              CASE priority WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END,
+              pct_below_market DESC,
+              Days_Vacant DESC
+            LIMIT 50
+            """
+            
+            result = self.client.query(query).to_dataframe()
+            data = result.to_dict(orient='records')
+            
+            logger.info(f"SvSN optimization recommendations returned {len(data)} recommendations")
+            
+            return {
+                'recommendations': data
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching SvSN optimization recommendations: {e}")
+            raise
+
+    # Archive Analytics Methods
+    async def get_archive_benchmark_analysis(self, bedroom_type: Optional[str] = None) -> Dict:
+        """Get benchmark analysis from archive table."""
+        try:
+            bedroom_filter = ""
+            if bedroom_type and bedroom_type != "All":
+                bedroom_filter = f"AND Bedrooms = '{bedroom_type}'"
+            
+            query = f"""
+            SELECT
+                CASE 
+                    WHEN Reporting_Property_Name = 'Archive Apartments' THEN 'Archive'
+                    ELSE 'Competition'
+                END as Property_Type,
+                Reporting_Property_Name,
+                Bedrooms,
+                COUNT(*) as unit_count,
+                AVG(Market_Rent) as avg_market_rent,
+                AVG(Market_Rent_PSF) as avg_market_rent_psf,
+                AVG(Avg__Sq__Ft_) as avg_sq_ft
+            FROM `{self.get_archive_table()}`
+            WHERE Market_Rent IS NOT NULL 
+                AND Market_Rent > 0
+                AND Avg__Sq__Ft_ IS NOT NULL 
+                AND Avg__Sq__Ft_ > 0
+                {bedroom_filter}
+            GROUP BY Property_Type, Reporting_Property_Name, Bedrooms
+            ORDER BY avg_market_rent DESC
+            """
+            
+            result = self.client.query(query).to_dataframe()
+            data = result.to_dict(orient='records')
+            
+            logger.info(f"Archive benchmark analysis returned {len(data)} property segments")
+            
+            return {
+                'benchmark_data': data
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching archive benchmark analysis: {e}")
+            raise
+
+    async def get_archive_vacancy_analysis(self, bedroom_type: Optional[str] = None) -> Dict:
+        """Get vacancy analysis from archive table."""
+        try:
+            bedroom_filter = ""
+            if bedroom_type and bedroom_type != "All":
+                bedroom_filter = f"AND Bedrooms = '{bedroom_type}'"
+            
+            # Note: Archive table doesn't have vacancy data, so we'll return basic unit counts
+            query = f"""
+            SELECT
+                CASE 
+                    WHEN Reporting_Property_Name = 'Archive Apartments' THEN 'Archive'
+                    ELSE 'Competition'
+                END as Property_Type,
+                Reporting_Property_Name,
+                Bedrooms,
+                COUNT(*) as total_units,
+                0 as avg_days_vacant,
+                0 as pct_vacant_30plus,
+                0 as units_vacant_30plus
+            FROM `{self.get_archive_table()}`
+            WHERE 1=1
+                {bedroom_filter}
+            GROUP BY Property_Type, Reporting_Property_Name, Bedrooms
+            ORDER BY total_units DESC
+            """
+            
+            result = self.client.query(query).to_dataframe()
+            data = result.to_dict(orient='records')
+            
+            logger.info(f"Archive vacancy analysis returned {len(data)} property segments")
+            
+            return {
+                'vacancy_data': data
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching archive vacancy analysis: {e}")
+            raise
+
+    async def get_archive_rent_spread_analysis(self) -> Dict:
+        """Get rent spread analysis for Archive properties only."""
+        try:
+            # Note: Archive table doesn't have Advertised_Rent or Unit level data
+            # We'll return summary data based on market rent only
+            query = f"""
+            SELECT
+                Reporting_Property_Name as property_name,
+                'N/A' as Unit,
+                Bedrooms,
+                AVG(Market_Rent) as Market_Rent,
+                AVG(Market_Rent) as Advertised_Rent,
+                0 as Days_Vacant,
+                0 as pct_below_market,
+                'Monitor' as suggested_action
+            FROM `{self.get_archive_table()}`
+            WHERE Reporting_Property_Name = 'Archive Apartments'
+                AND Market_Rent IS NOT NULL 
+                AND Market_Rent > 0
+            GROUP BY Reporting_Property_Name, Bedrooms
+            ORDER BY Market_Rent DESC
+            """
+            
+            result = self.client.query(query).to_dataframe()
+            data = result.to_dict(orient='records')
+            
+            # Calculate summary statistics
+            total_units = len(data)
+            units_below_market_10pct = 0  # No comparison data available
+            avg_gap = 0  # No advertised vs market rent gap
+            
+            summary = {
+                'total_units': total_units,
+                'units_below_market_10pct': units_below_market_10pct,
+                'avg_rent_gap_pct': avg_gap
+            }
+            
+            logger.info(f"Archive rent spread analysis returned {len(data)} unit types")
+            
+            return {
+                'rent_spread_data': data,
+                'summary': summary
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching archive rent spread analysis: {e}")
+            raise
+
+    async def get_archive_market_rent_clustering(self, bedroom_type: Optional[str] = None) -> Dict:
+        """Get market rent clustering analysis from archive table."""
+        try:
+            bedroom_filter = ""
+            if bedroom_type and bedroom_type != "All":
+                bedroom_filter = f"AND Bedrooms = '{bedroom_type}'"
+            
+            query = f"""
+            SELECT
+                CASE 
+                    WHEN Market_Rent < 1000 THEN '<$1,000'
+                    WHEN Market_Rent < 1200 THEN '$1,000-$1,200'
+                    WHEN Market_Rent < 1500 THEN '$1,200-$1,500'
+                    WHEN Market_Rent < 1800 THEN '$1,500-$1,800'
+                    WHEN Market_Rent < 2100 THEN '$1,800-$2,100'
+                    WHEN Market_Rent < 2500 THEN '$2,100-$2,500'
+                    ELSE '$2,500+'
+                END as rent_bucket,
+                Bedrooms,
+                COUNT(*) as unit_count,
+                0 as avg_days_vacant,
+                CASE 
+                    WHEN Reporting_Property_Name = 'Archive Apartments' THEN 'Archive'
+                    ELSE 'Competition'
+                END as Property_Type
+            FROM `{self.get_archive_table()}`
+            WHERE Market_Rent IS NOT NULL 
+                AND Market_Rent > 0
+                {bedroom_filter}
+            GROUP BY rent_bucket, Bedrooms, Property_Type
+            ORDER BY 
+                CASE rent_bucket
+                    WHEN '<$1,000' THEN 1
+                    WHEN '$1,000-$1,200' THEN 2
+                    WHEN '$1,200-$1,500' THEN 3
+                    WHEN '$1,500-$1,800' THEN 4
+                    WHEN '$1,800-$2,100' THEN 5
+                    WHEN '$2,100-$2,500' THEN 6
+                    ELSE 7
+                END,
+                Bedrooms
+            """
+            
+            result = self.client.query(query).to_dataframe()
+            data = result.to_dict(orient='records')
+            
+            logger.info(f"Archive market rent clustering returned {len(data)} clusters")
+            
+            return {
+                'clustering_data': data
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching archive market rent clustering: {e}")
+            raise
+
+    async def get_archive_optimization_recommendations(self) -> Dict:
+        """Get optimization recommendations for Archive properties."""
+        try:
+            # Note: Archive table doesn't have Unit, Advertised_Rent, or Days_Vacant
+            # We'll provide general recommendations based on available data
+            query = f"""
+            SELECT
+                'N/A' as Unit,
+                Bedrooms,
+                AVG(Market_Rent) as Market_Rent,
+                AVG(Market_Rent) as Advertised_Rent,
+                0 as Days_Vacant,
+                'Monitor market trends' as suggested_action,
+                'Medium' as priority
+            FROM `{self.get_archive_table()}`
+            WHERE Reporting_Property_Name = 'Archive Apartments'
+                AND Market_Rent IS NOT NULL 
+                AND Market_Rent > 0
+            GROUP BY Bedrooms
+            ORDER BY Market_Rent DESC
+            """
+            
+            result = self.client.query(query).to_dataframe()
+            data = result.to_dict(orient='records')
+            
+            logger.info(f"Archive optimization recommendations returned {len(data)} recommendations")
+            
+            return {
+                'recommendations': data
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching archive optimization recommendations: {e}")
             raise
 
 

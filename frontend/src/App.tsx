@@ -2,15 +2,17 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import LoginPage from '@/components/LoginPage';
-import Layout from '@/components/Layout';
-import UnitsPage from '@/pages/UnitsPage';
-import DashboardPage from '@/pages/DashboardPage';
-import SettingsPage from '@/pages/SettingsPage';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import Layout from './components/Layout';
+import LoginPage from './components/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import UnitsPage from './pages/UnitsPage';
+import SettingsPage from './pages/SettingsPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import MarketResearchPage from './pages/MarketResearchPage';
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -35,20 +37,20 @@ const AppContent: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    return <LoginPage onLogin={login} />;
+    return <LoginPage onLogin={() => {}} />;
   }
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/units" element={<UnitsPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Routes>
-      </Layout>
-    </Box>
+    <Layout>
+      <Routes>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/units" element={<UnitsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/market-research" element={<MarketResearchPage />} />
+      </Routes>
+    </Layout>
   );
 };
 

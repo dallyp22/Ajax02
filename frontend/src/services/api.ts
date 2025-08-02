@@ -787,6 +787,64 @@ class ApiService {
       };
     }
   }
+
+  // SvSN Analytics API methods for NuStyle vs Competition Analysis
+  async getSvSNBenchmarkAnalysis(bedroomType?: string): Promise<SvSNBenchmarkResponse> {
+    const params = bedroomType ? `?bedroom_type=${encodeURIComponent(bedroomType)}` : '';
+    const response = await this.client.get(`/svsn/benchmark${params}`);
+    return response.data;
+  }
+
+  async getSvSNVacancyAnalysis(bedroomType?: string): Promise<SvSNVacancyResponse> {
+    const params = bedroomType ? `?bedroom_type=${encodeURIComponent(bedroomType)}` : '';
+    const response = await this.client.get(`/svsn/vacancy${params}`);
+    return response.data;
+  }
+
+  async getSvSNRentSpreadAnalysis(): Promise<SvSNRentSpreadResponse> {
+    const response = await this.client.get('/svsn/rent-spread');
+    return response.data;
+  }
+
+  async getSvSNMarketRentClustering(bedroomType?: string): Promise<SvSNClusteringResponse> {
+    const params = bedroomType ? `?bedroom_type=${encodeURIComponent(bedroomType)}` : '';
+    const response = await this.client.get(`/svsn/clustering${params}`);
+    return response.data;
+  }
+
+  async getSvSNOptimizationRecommendations(): Promise<SvSNRecommendationResponse> {
+    const response = await this.client.get('/svsn/recommendations');
+    return response.data;
+  }
+
+  // Archive Analytics endpoints
+  async getArchiveBenchmarkAnalysis(bedroomType?: string): Promise<ArchiveBenchmarkResponse> {
+    const params = bedroomType ? { bedroom_type: bedroomType } : {};
+    const response = await this.client.get('/archive/benchmark', { params });
+    return response.data;
+  }
+
+  async getArchiveVacancyAnalysis(bedroomType?: string): Promise<ArchiveVacancyResponse> {
+    const params = bedroomType ? { bedroom_type: bedroomType } : {};
+    const response = await this.client.get('/archive/vacancy', { params });
+    return response.data;
+  }
+
+  async getArchiveRentSpreadAnalysis(): Promise<ArchiveRentSpreadResponse> {
+    const response = await this.client.get('/archive/rent-spread');
+    return response.data;
+  }
+
+  async getArchiveMarketRentClustering(bedroomType?: string): Promise<ArchiveClusteringResponse> {
+    const params = bedroomType ? { bedroom_type: bedroomType } : {};
+    const response = await this.client.get('/archive/clustering', { params });
+    return response.data;
+  }
+
+  async getArchiveOptimizationRecommendations(): Promise<ArchiveRecommendationResponse> {
+    const response = await this.client.get('/archive/recommendations');
+    return response.data;
+  }
 }
 
 // Export singleton instance

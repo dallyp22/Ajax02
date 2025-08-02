@@ -191,6 +191,7 @@ export interface ComparisonChartData {
 export interface TableSettings {
   rentroll_table: string;
   competition_table: string;
+  archive_table: string;
   project_id: string;
 }
 
@@ -203,6 +204,7 @@ export interface TestResult {
 export interface ConnectionTestResponse {
   rentroll_table: TestResult;
   competition_table: TestResult;
+  archive_table: TestResult;
 }
 
 // Analytics types
@@ -387,4 +389,166 @@ export interface PropertyMarketTrends {
     unit_type: string;
     unit_count: number;
   }>;
+}
+
+// SvSN Analytics Types for NuStyle vs Competition Analysis
+export interface SvSNBenchmarkData {
+  Property_Type: string;
+  Reporting_Property_Name: string;
+  Bedrooms: string;
+  unit_count: number;
+  avg_market_rent: number;
+  avg_market_rent_psf: number;
+  avg_sq_ft: number;
+}
+
+export interface SvSNBenchmarkResponse {
+  benchmark_data: SvSNBenchmarkData[];
+  bedroom_type: string;
+}
+
+export interface SvSNVacancyData {
+  Property_Type: string;
+  Reporting_Property_Name: string;
+  Bedrooms: string;
+  total_units: number;
+  avg_days_vacant: number;
+  units_vacant_30plus: number;
+  pct_vacant_30plus: number;
+}
+
+export interface SvSNVacancyResponse {
+  vacancy_data: SvSNVacancyData[];
+  bedroom_type: string;
+}
+
+export interface SvSNRentSpreadData {
+  Reporting_Property_Name: string;
+  Unit: string;
+  Bedrooms: string;
+  Market_Rent: number;
+  Advertised_Rent: number;
+  Days_Vacant: number;
+  pct_below_market: number;
+  opportunity_level: string;
+  suggested_action: string;
+}
+
+export interface SvSNRentSpreadSummary {
+  total_units: number;
+  high_opportunity_units: number;
+  moderate_opportunity_units: number;
+  total_monthly_potential: number;
+  total_annual_potential: number;
+}
+
+export interface SvSNRentSpreadResponse {
+  rent_spread_data: SvSNRentSpreadData[];
+  summary: SvSNRentSpreadSummary;
+}
+
+export interface SvSNClusteringData {
+  Property_Type: string;
+  Bedrooms: string;
+  rent_bucket: string;
+  unit_count: number;
+  avg_days_vacant: number;
+}
+
+export interface SvSNClusteringResponse {
+  clustering_data: SvSNClusteringData[];
+  bedroom_type: string;
+}
+
+export interface SvSNRecommendationData {
+  Unit: string;
+  Bedrooms: string;
+  Market_Rent: number;
+  Advertised_Rent: number;
+  Days_Vacant: number;
+  pct_below_market: number;
+  rent_gap: number;
+  suggested_action: string;
+  priority: string;
+}
+
+export interface SvSNRecommendationResponse {
+  recommendations: SvSNRecommendationData[];
+}
+
+// Archive Analytics types (similar to SvSN but for Archive data)
+export interface ArchiveBenchmarkData {
+  Property_Type: string;
+  Reporting_Property_Name: string;
+  Bedrooms: string;
+  unit_count: number;
+  avg_market_rent: number;
+  avg_market_rent_psf: number;
+  avg_sq_ft: number;
+}
+
+export interface ArchiveBenchmarkResponse {
+  benchmark_data: ArchiveBenchmarkData[];
+}
+
+export interface ArchiveVacancyData {
+  Property_Type: string;
+  Reporting_Property_Name: string;
+  Bedrooms: string;
+  total_units: number;
+  avg_days_vacant: number;
+  pct_vacant_30plus: number;
+  units_vacant_30plus: number;
+}
+
+export interface ArchiveVacancyResponse {
+  vacancy_data: ArchiveVacancyData[];
+}
+
+export interface ArchiveRentSpreadData {
+  property_name: string;
+  Unit: string;
+  Bedrooms: string;
+  Market_Rent: number;
+  Advertised_Rent: number;
+  Days_Vacant: number;
+  pct_below_market: number;
+  suggested_action: string;
+}
+
+export interface ArchiveRentSpreadSummary {
+  total_units: number;
+  units_below_market_10pct: number;
+  avg_rent_gap_pct: number;
+}
+
+export interface ArchiveRentSpreadResponse {
+  rent_spread_data: ArchiveRentSpreadData[];
+  summary: ArchiveRentSpreadSummary;
+}
+
+export interface ArchiveClusteringData {
+  rent_bucket: string;
+  Bedrooms: string;
+  unit_count: number;
+  avg_days_vacant: number;
+  Property_Type: string;
+}
+
+export interface ArchiveClusteringResponse {
+  clustering_data: ArchiveClusteringData[];
+}
+
+export interface ArchiveRecommendationData {
+  Unit: string;
+  Bedrooms: string;
+  Market_Rent: number;
+  Advertised_Rent: number;
+  Days_Vacant: number;
+  suggested_action: string;
+  priority: string;
+}
+
+export interface ArchiveRecommendationResponse {
+  recommendations: ArchiveRecommendationData[];
 } 

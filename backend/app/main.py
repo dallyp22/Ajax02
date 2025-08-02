@@ -31,6 +31,7 @@ from pydantic import BaseModel
 class TableSettings(BaseModel):
     rentroll_table: str = os.getenv("BIGQUERY_RENTROLL_TABLE", "rentroll-ai.rentroll.Update_7_8_native")
     competition_table: str = os.getenv("BIGQUERY_COMPETITION_TABLE", "rentroll-ai.rentroll.Competition")
+    archive_table: str = os.getenv("BIGQUERY_ARCHIVE_TABLE", "rentroll-ai.rentroll.ArchiveAptMain")
     project_id: str = os.getenv("GOOGLE_CLOUD_PROJECT", "rentroll-ai")
 
 class TestResult(BaseModel):
@@ -41,6 +42,7 @@ class TestResult(BaseModel):
 class ConnectionTestResponse(BaseModel):
     rentroll_table: TestResult
     competition_table: TestResult
+    archive_table: TestResult
 
 # Global effective settings
 _current_settings: Optional[TableSettings] = None
@@ -95,6 +97,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",  # Local development
         "http://localhost:3004",  # Local development (alternative port)
+        "http://localhost:3005",  # Local development (alternative port)
         "https://*.vercel.app",   # Vercel deployments
         "*"  # Temporary - update with your actual Vercel domain
     ],
@@ -560,9 +563,20 @@ async def test_table_connections(settings_data: TableSettings) -> ConnectionTest
         except Exception as e:
             competition_result = TestResult(success=False, error=str(e))
 
+        # Test archive table
+        archive_result = TestResult(success=False)
+        try:
+            query = f"SELECT COUNT(*) as count FROM `{settings_data.archive_table}` LIMIT 1"
+            result = db_service.client.query(query).result()
+            row_count = list(result)[0]['count']
+            archive_result = TestResult(success=True, row_count=row_count)
+        except Exception as e:
+            archive_result = TestResult(success=False, error=str(e))
+
         return ConnectionTestResponse(
             rentroll_table=rentroll_result,
-            competition_table=competition_result
+            competition_table=competition_result,
+            archive_table=archive_result
         )
     except Exception as e:
         logger.error(f"Error testing table connections: {e}")
@@ -590,6 +604,109 @@ async def startup_event():
         logger.info("✅ BigQuery connection successful")
     else:
         logger.warning("⚠️ BigQuery connection failed - check credentials and permissions")
+
+# SvSN Analytics Endpoints for NuStyle vs Competition Analysis
+@app.get("/api/v1/svsn/benchmark")
+async def get_svsn_benchmark_analysis(bedroom_type: Optional[str] = Query(None)):
+    """Get benchmark bar charts comparing NuStyle vs Competition by bedroom type."""
+    try:
+        result = await db_service.get_svsn_benchmark_analysis(bedroom_type)
+        return result
+    except Exception as e:
+        logger.error(f"Error in SvSN benchmark analysis endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/svsn/vacancy")
+async def get_svsn_vacancy_analysis(bedroom_type: Optional[str] = Query(None)):
+    """Get vacancy performance analysis by bedroom type."""
+    try:
+        result = await db_service.get_svsn_vacancy_analysis(bedroom_type)
+        return result
+    except Exception as e:
+        logger.error(f"Error in SvSN vacancy analysis endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/svsn/rent-spread")
+async def get_svsn_rent_spread_analysis():
+    """Get rent spread analysis for NuStyle units (Advertised vs Market rent)."""
+    try:
+        result = await db_service.get_svsn_rent_spread_analysis()
+        return result
+    except Exception as e:
+        logger.error(f"Error in SvSN rent spread analysis endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/svsn/clustering")
+async def get_svsn_market_rent_clustering(bedroom_type: Optional[str] = Query(None)):
+    """Get market rent clustering analysis with rent buckets."""
+    try:
+        result = await db_service.get_svsn_market_rent_clustering(bedroom_type)
+        return result
+    except Exception as e:
+        logger.error(f"Error in SvSN market rent clustering endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/svsn/recommendations")
+async def get_svsn_optimization_recommendations():
+    """Get optimization recommendations for NuStyle units."""
+    try:
+        result = await db_service.get_svsn_optimization_recommendations()
+        return result
+    except Exception as e:
+        logger.error(f"Error in SvSN optimization recommendations endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Archive Analytics Endpoints
+@app.get("/api/v1/archive/benchmark")
+async def get_archive_benchmark(bedroom_type: Optional[str] = None):
+    """Get benchmark analysis for Archive properties."""
+    try:
+        result = await db_service.get_archive_benchmark_analysis(bedroom_type)
+        return result
+    except Exception as e:
+        logger.error(f"Error in archive benchmark endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/archive/vacancy")
+async def get_archive_vacancy(bedroom_type: Optional[str] = None):
+    """Get vacancy performance analysis for Archive properties."""
+    try:
+        result = await db_service.get_archive_vacancy_analysis(bedroom_type)
+        return result
+    except Exception as e:
+        logger.error(f"Error in archive vacancy endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/archive/rent-spread")
+async def get_archive_rent_spread():
+    """Get rent spread analysis for Archive properties."""
+    try:
+        result = await db_service.get_archive_rent_spread_analysis()
+        return result
+    except Exception as e:
+        logger.error(f"Error in archive rent spread endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/archive/clustering")
+async def get_archive_clustering(bedroom_type: Optional[str] = None):
+    """Get market rent clustering analysis for Archive properties."""
+    try:
+        result = await db_service.get_archive_market_rent_clustering(bedroom_type)
+        return result
+    except Exception as e:
+        logger.error(f"Error in archive clustering endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/archive/recommendations")
+async def get_archive_recommendations():
+    """Get optimization recommendations for Archive properties."""
+    try:
+        result = await db_service.get_archive_optimization_recommendations()
+        return result
+    except Exception as e:
+        logger.error(f"Error in archive recommendations endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

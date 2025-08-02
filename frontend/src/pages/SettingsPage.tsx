@@ -29,6 +29,7 @@ import { apiService } from '@/services/api';
 interface TableSettings {
   rentroll_table: string;
   competition_table: string;
+  archive_table: string;
   project_id: string;
 }
 
@@ -36,6 +37,7 @@ const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<TableSettings>({
     rentroll_table: 'rentroll-ai.rentroll.Update_7_8_native',
     competition_table: 'rentroll-ai.rentroll.Competition',
+    archive_table: 'rentroll-ai.rentroll.ArchiveAptMain',
     project_id: 'rentroll-ai'
   });
   const [hasChanges, setHasChanges] = useState(false);
@@ -107,6 +109,7 @@ const SettingsPage: React.FC = () => {
       setSettings({
         rentroll_table: 'rentroll-ai.rentroll.Update_7_8_native',
         competition_table: 'rentroll-ai.rentroll.Competition',
+        archive_table: 'rentroll-ai.rentroll.ArchiveAptMain',
         project_id: 'rentroll-ai'
       });
       setHasChanges(false);
@@ -177,6 +180,24 @@ const SettingsPage: React.FC = () => {
                     onChange={handleInputChange('competition_table')}
                     placeholder="project.dataset.table_name"
                     helperText="Full path to your competition data table (e.g., my-project.market.competition)"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <InfoIcon color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Archive Table (Market Research)"
+                    value={settings.archive_table}
+                    onChange={handleInputChange('archive_table')}
+                    placeholder="project.dataset.table_name"
+                    helperText="Full path to your archive apartment data table (e.g., my-project.market.archive)"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -298,6 +319,19 @@ const SettingsPage: React.FC = () => {
                     {testResults.competition_table.success 
                       ? `✅ Connected successfully (${testResults.competition_table.row_count} rows)`
                       : `❌ ${testResults.competition_table.error}`
+                    }
+                  </Typography>
+                </Alert>
+              </Grid>
+              <Grid item xs={12}>
+                <Alert 
+                  severity={testResults.archive_table.success ? 'success' : 'error'}
+                >
+                  <Typography variant="subtitle2">Archive Table (Market Research)</Typography>
+                  <Typography variant="body2">
+                    {testResults.archive_table.success 
+                      ? `✅ Connected successfully (${testResults.archive_table.row_count} rows)`
+                      : `❌ ${testResults.archive_table.error}`
                     }
                   </Typography>
                 </Alert>

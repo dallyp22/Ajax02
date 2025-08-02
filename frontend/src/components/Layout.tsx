@@ -29,8 +29,10 @@ import {
   Speed as SpeedIcon,
   Visibility as VisibilityIcon,
   Logout,
+  CompareArrows as CompareArrowsIcon,
+  Assessment as AssessmentIcon,
 } from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 const drawerWidth = 280;
@@ -68,7 +70,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const menuItems = [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard', description: 'Portfolio Overview' },
     { text: 'Units', icon: <Home />, path: '/units', description: 'Unit Management' },
-    { text: 'Analytics', icon: <Analytics />, path: '/analytics', description: 'Market Analysis' },
+    { text: 'Analytics', icon: <CompareArrowsIcon />, path: '/analytics', description: 'Competitive Intelligence' },
+    { text: 'Market Research', icon: <AssessmentIcon />, path: '/market-research', description: 'Market Analysis' },
     { text: 'Settings', icon: <Settings />, path: '/settings', description: 'Configuration' },
   ];
 
