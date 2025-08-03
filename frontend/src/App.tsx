@@ -13,7 +13,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import MarketResearchPage from './pages/MarketResearchPage';
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, login } = useAuth();
 
   if (isLoading) {
     return (
@@ -38,7 +38,7 @@ const AppContent: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    return <LoginPage onLogin={() => {}} />;
+    return <LoginPage onLogin={login} />;
   }
 
   return (
