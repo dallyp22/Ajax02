@@ -696,6 +696,7 @@ class BigQueryService:
                             )
                         else:
                             row_dict['avg_premium_discount_pct'] = 0
+                        row_dict['comparable_units'] = int(market_result.iloc[0]['comp_count'])
                         logger.info(f"Found {market_result.iloc[0]['comp_count']} comps for {row['unit_type']}: ${market_result.iloc[0]['avg_market_rent']}")
                     else:
                         # Fallback to mock if no competition data
@@ -703,6 +704,7 @@ class BigQueryService:
                         row_dict['avg_market_rent'] = int(our_rent * 1.05)
                         row_dict['avg_market_rent_per_sqft'] = round((row.get('avg_our_rent_per_sqft') or 1.0) * 1.05, 2)
                         row_dict['avg_premium_discount_pct'] = -4.8
+                        row_dict['comparable_units'] = 0  # Add missing field
                         logger.info(f"No comps found for {row['unit_type']} with filter {bed_filter}")
                 except Exception as e:
                     logger.warning(f"Competition query failed for {row['unit_type']}: {e}")
@@ -711,6 +713,7 @@ class BigQueryService:
                     row_dict['avg_market_rent'] = int(our_rent * 1.05)
                     row_dict['avg_market_rent_per_sqft'] = round((row.get('avg_our_rent_per_sqft') or 1.0) * 1.05, 2)
                     row_dict['avg_premium_discount_pct'] = -4.8
+                    row_dict['comparable_units'] = 0  # Add missing field
                 
                 overview_data.append(row_dict)
             
