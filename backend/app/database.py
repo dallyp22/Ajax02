@@ -9,6 +9,7 @@ from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 
 from app.config import settings
+from app.utils import serialize_for_json
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,7 @@ class BigQueryService:
         page_size: int = 50,
         status_filter: Optional[str] = None,
         property_filter: Optional[str] = None,
+        properties_filter: Optional[List[str]] = None,
         needs_pricing_only: bool = False
     ) -> tuple[List[Dict], int]:
         """
@@ -84,7 +86,8 @@ class BigQueryService:
             page: Page number (1-based)
             page_size: Number of units per page
             status_filter: Filter by unit status
-            property_filter: Filter by property name
+            property_filter: Filter by property name (single property)
+            properties_filter: Filter by multiple property names
             needs_pricing_only: Only return units that need pricing
             
         Returns:
@@ -98,6 +101,10 @@ class BigQueryService:
         
         if property_filter:
             where_conditions.append(f"property = '{property_filter}'")
+        elif properties_filter and len(properties_filter) > 0:
+            # Handle multiple properties filtering
+            property_list = "', '".join(properties_filter)
+            where_conditions.append(f"property IN ('{property_list}')")
             
         if needs_pricing_only:
             where_conditions.append("needs_pricing = TRUE")
@@ -323,262 +330,300 @@ class BigQueryService:
             logger.error(f"Error fetching unit types summary: {e}")
             return {}
     
-    async def get_portfolio_analytics(self) -> Dict:
-        """Get comprehensive portfolio analytics."""
+    async def get_portfolio_analytics(self, selected_properties: Optional[List[str]] = None) -> Dict:
+        """Get comprehensive portfolio analytics with optional property filtering."""
+        
+        # Build property filter clause
+        property_filter = ""
+        if selected_properties:
+            property_list = "', '".join(selected_properties)
+            property_filter = f"AND property IN ('{property_list}')"
+        
         query = f"""
-        WITH portfolio_metrics AS (
-          SELECT
-            COUNT(*) as total_units,
-            SUM(CASE WHEN status = 'VACANT' THEN 1 ELSE 0 END) as vacant_units,
-            SUM(CASE WHEN status = 'OCCUPIED' THEN 1 ELSE 0 END) as occupied_units,
-            SUM(CASE WHEN status = 'NOTICE' THEN 1 ELSE 0 END) as notice_units,
-            SUM(CASE WHEN needs_pricing = TRUE THEN 1 ELSE 0 END) as units_needing_pricing,
-            SUM(annual_revenue_potential) as total_revenue_potential,
-            SUM(CASE WHEN status = 'OCCUPIED' THEN advertised_rent * 12 ELSE 0 END) as current_annual_revenue,
-            AVG(rent_per_sqft) as avg_rent_per_sqft,
-            AVG(CASE WHEN status = 'OCCUPIED' THEN advertised_rent ELSE NULL END) as avg_occupied_rent,
-            AVG(CASE WHEN status = 'VACANT' THEN advertised_rent ELSE NULL END) as avg_vacant_rent
-          FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+        WITH portfolio_stats AS (
+            SELECT 
+                COUNT(*) as total_units,
+                COUNT(CASE WHEN status = 'OCCUPIED' THEN 1 END) as occupied_units,
+                COUNT(CASE WHEN status = 'VACANT' THEN 1 END) as vacant_units,
+                COUNT(CASE WHEN status = 'NOTICE' THEN 1 END) as notice_units,
+                AVG(advertised_rent) as avg_rent,
+                -- Annual Revenue: Only from OCCUPIED units (actual revenue)
+                SUM(CASE WHEN status = 'OCCUPIED' THEN advertised_rent ELSE 0 END) as total_monthly_revenue,
+                AVG(CASE WHEN status = 'OCCUPIED' THEN advertised_rent END) as avg_occupied_rent
+            FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+            WHERE has_complete_data = TRUE
+            {property_filter}
         ),
-        urgency_breakdown AS (
-          SELECT
-            pricing_urgency,
-            COUNT(*) as unit_count
-          FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
-          WHERE needs_pricing = TRUE
-          GROUP BY pricing_urgency
+        vacancy_by_urgency AS (
+            SELECT 
+                pricing_urgency,
+                COUNT(*) as unit_count
+            FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+            WHERE needs_pricing = TRUE 
+              AND has_complete_data = TRUE
+              {property_filter}
+            GROUP BY pricing_urgency
         ),
-        property_performance AS (
-          SELECT
-            property,
-            COUNT(*) as total_units,
-            SUM(CASE WHEN status = 'VACANT' THEN 1 ELSE 0 END) as vacant_units,
-            ROUND(AVG(advertised_rent), 2) as avg_rent,
-            ROUND(AVG(rent_per_sqft), 2) as avg_rent_per_sqft,
-            SUM(annual_revenue_potential) as revenue_potential
-          FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
-          GROUP BY property
-          ORDER BY revenue_potential DESC
-          LIMIT 10
+        top_properties AS (
+            SELECT 
+                property,
+                COUNT(*) as unit_count,
+                AVG(advertised_rent) as avg_rent,
+                COUNT(CASE WHEN status = 'OCCUPIED' THEN 1 END) as occupied_count,
+                ROUND(COUNT(CASE WHEN status = 'OCCUPIED' THEN 1 END) * 100.0 / COUNT(*), 1) as occupancy_rate
+            FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+            WHERE has_complete_data = TRUE
+            {property_filter}
+            GROUP BY property
+            ORDER BY unit_count DESC
+            LIMIT 10
         )
         SELECT 
-          JSON_OBJECT(
-            'total_units', (SELECT total_units FROM portfolio_metrics),
-            'vacant_units', (SELECT vacant_units FROM portfolio_metrics),
-            'occupied_units', (SELECT occupied_units FROM portfolio_metrics),
-            'notice_units', (SELECT notice_units FROM portfolio_metrics),
-            'units_needing_pricing', (SELECT units_needing_pricing FROM portfolio_metrics),
-            'total_revenue_potential', (SELECT total_revenue_potential FROM portfolio_metrics),
-            'current_annual_revenue', (SELECT current_annual_revenue FROM portfolio_metrics),
-            'avg_rent_per_sqft', (SELECT avg_rent_per_sqft FROM portfolio_metrics),
-            'avg_occupied_rent', (SELECT avg_occupied_rent FROM portfolio_metrics),
-            'avg_vacant_rent', (SELECT avg_vacant_rent FROM portfolio_metrics)
-          ) as portfolio_json
+            'portfolio_summary' as metric_type,
+            CAST(p.total_units AS STRING) as str_value1,
+            CAST(p.occupied_units AS STRING) as str_value2,
+            CAST(p.vacant_units AS STRING) as str_value3,
+            CAST(p.notice_units AS STRING) as str_value4,
+            CAST(p.avg_rent AS STRING) as str_value5,
+            CAST(p.total_monthly_revenue AS STRING) as str_value6,
+            CAST(p.avg_occupied_rent AS STRING) as str_value7,
+            CAST(ROUND(p.occupied_units * 100.0 / p.total_units, 1) AS STRING) as str_value8,
+            CAST(p.total_monthly_revenue * 12 AS STRING) as str_value9
+        FROM portfolio_stats p
+        
+        UNION ALL
+        
+        SELECT 
+            'vacancy_urgency' as metric_type,
+            v.pricing_urgency as str_value1,
+            CAST(v.unit_count AS STRING) as str_value2,
+            NULL as str_value3,
+            NULL as str_value4,
+            NULL as str_value5,
+            NULL as str_value6,
+            NULL as str_value7,
+            NULL as str_value8,
+            NULL as str_value9
+        FROM vacancy_by_urgency v
+        
+        UNION ALL
+        
+        SELECT 
+            'top_properties' as metric_type,
+            t.property as str_value1,
+            CAST(t.unit_count AS STRING) as str_value2,
+            CAST(t.avg_rent AS STRING) as str_value3,
+            CAST(t.occupied_count AS STRING) as str_value4,
+            CAST(t.occupancy_rate AS STRING) as str_value5,
+            NULL as str_value6,
+            NULL as str_value7,
+            NULL as str_value8,
+            NULL as str_value9
+        FROM top_properties t
         """
         
         try:
             result = self.client.query(query).result()
-            portfolio_data = list(result)[0]['portfolio_json']
             
-            # Get urgency breakdown
-            urgency_query = f"""
-            SELECT
-              pricing_urgency,
-              COUNT(*) as unit_count
-            FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
-            WHERE needs_pricing = TRUE
-            GROUP BY pricing_urgency
-            """
-            urgency_result = self.client.query(urgency_query).to_dataframe()
-            urgency_breakdown = urgency_result.to_dict(orient='records')
+            # Process results into structured format
+            portfolio_summary = {}
+            vacancy_urgency = []
+            top_properties = []
             
-            # Get property performance
-            property_query = f"""
-            SELECT
-              property,
-              COUNT(*) as total_units,
-              SUM(CASE WHEN status = 'VACANT' THEN 1 ELSE 0 END) as vacant_units,
-              ROUND(AVG(advertised_rent), 2) as avg_rent,
-              ROUND(AVG(rent_per_sqft), 2) as avg_rent_per_sqft,
-              SUM(annual_revenue_potential) as revenue_potential
-            FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
-            GROUP BY property
-            ORDER BY revenue_potential DESC
-            LIMIT 10
-            """
-            property_result = self.client.query(property_query).to_dataframe()
-            property_performance = property_result.to_dict(orient='records')
-            
-            # Calculate additional metrics
-            portfolio_data['occupancy_rate'] = (portfolio_data['occupied_units'] / portfolio_data['total_units'] * 100) if portfolio_data['total_units'] > 0 else 0
-            portfolio_data['revenue_optimization_potential'] = portfolio_data['total_revenue_potential'] - portfolio_data['current_annual_revenue']
+            for row in result:
+                if row.metric_type == 'portfolio_summary':
+                    portfolio_summary = {
+                        'total_units': int(row.str_value1),
+                        'occupied_units': int(row.str_value2),
+                        'vacant_units': int(row.str_value3),
+                        'notice_units': int(row.str_value4),
+                        'occupancy_rate': float(row.str_value8),
+                        'avg_rent': float(row.str_value5),
+                        'total_monthly_revenue': float(row.str_value6),
+                        'estimated_annual_revenue': float(row.str_value9)
+                    }
+                elif row.metric_type == 'vacancy_urgency':
+                    vacancy_urgency.append({
+                        'urgency': row.str_value1,
+                        'count': int(row.str_value2)
+                    })
+                elif row.metric_type == 'top_properties':
+                    top_properties.append({
+                        'property': row.str_value1,
+                        'unit_count': int(row.str_value2),
+                        'avg_rent': float(row.str_value3),
+                        'occupied_count': int(row.str_value4),
+                        'occupancy_rate': float(row.str_value5)
+                    })
             
             return {
-                'portfolio': portfolio_data,
-                'urgency_breakdown': urgency_breakdown,
-                'property_performance': property_performance
+                'portfolio_summary': portfolio_summary,
+                'vacancy_by_urgency': vacancy_urgency,
+                'top_properties': top_properties,
+                'filtered_properties': selected_properties or [],
+                'total_properties_in_filter': len(selected_properties) if selected_properties else None
             }
+            
         except Exception as e:
-            logger.error(f"Error fetching portfolio analytics: {e}")
-            raise
+            logger.error(f"Error in portfolio analytics: {e}")
+            return {
+                'portfolio_summary': {},
+                'vacancy_by_urgency': [],
+                'top_properties': [],
+                'error': str(e)
+            }
     
-    async def get_market_position_analytics(self) -> Dict:
-        """Get market positioning analytics against competition."""
+    async def get_market_position_analytics(self, selected_properties: Optional[List[str]] = None) -> Dict:
+        """Get market positioning analytics with optional property filtering."""
+        
+        # Build property filter clause
+        property_filter = ""
+        if selected_properties:
+            property_list = "', '".join(selected_properties)
+            property_filter = f"AND property IN ('{property_list}')"
+        
         query = f"""
-        WITH unit_comp_analysis AS (
-          SELECT
-            u.unit_id,
-            u.property,
-            u.unit_type,
-            u.advertised_rent,
-            u.rent_per_sqft as our_rent_per_sqft,
-            c.avg_comp_price,
-            CASE 
-              WHEN c.avg_comp_price IS NOT NULL AND u.advertised_rent > c.avg_comp_price THEN 'ABOVE_MARKET'
-              WHEN c.avg_comp_price IS NOT NULL AND u.advertised_rent < c.avg_comp_price * 0.95 THEN 'BELOW_MARKET'
-              ELSE 'AT_MARKET'
-            END as market_position,
-            CASE 
-              WHEN c.avg_comp_price IS NOT NULL THEN 
-                ROUND((u.advertised_rent - c.avg_comp_price) / c.avg_comp_price * 100, 1)
-              ELSE NULL
-            END as premium_discount_pct
-          FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')} u
-          LEFT JOIN (
-            SELECT 
-              unit_id,
-              AVG(comp_price) as avg_comp_price
-            FROM {self._get_table_name(self.mart_dataset, 'unit_competitor_pairs')}
-            GROUP BY unit_id
-          ) c ON u.unit_id = c.unit_id
-        )
-        SELECT
-          market_position,
-          COUNT(*) as unit_count,
-          AVG(premium_discount_pct) as avg_premium_discount,
-          AVG(advertised_rent) as avg_rent
-        FROM unit_comp_analysis
-        WHERE premium_discount_pct IS NOT NULL
+        SELECT 
+            market_position,
+            COUNT(*) as unit_count,
+            AVG(premium_discount_pct) as avg_premium_discount,
+            AVG(advertised_rent) as avg_rent
+        FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+        WHERE has_complete_data = TRUE
+        {property_filter}
         GROUP BY market_position
+        ORDER BY unit_count DESC
         """
         
         try:
             result = self.client.query(query).to_dataframe()
             market_summary = result.to_dict(orient='records')
             
-            # Get unit type comparison
+            # Get unit type comparison with property filtering
             unit_type_query = f"""
-            SELECT
-              u.unit_type,
-              COUNT(*) as total_units,
-              AVG(u.rent_per_sqft) as our_avg_rent_per_sqft,
-              AVG(c.avg_comp_price_per_sqft) as market_avg_rent_per_sqft
-            FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')} u
-            LEFT JOIN (
-              SELECT 
-                unit_id,
-                AVG(comp_price / comp_sqft) as avg_comp_price_per_sqft
-              FROM {self._get_table_name(self.mart_dataset, 'unit_competitor_pairs')}
-              GROUP BY unit_id
-            ) c ON u.unit_id = c.unit_id
-            WHERE c.avg_comp_price_per_sqft IS NOT NULL
-            GROUP BY u.unit_type
+            SELECT 
+                unit_type,
+                AVG(advertised_rent) as avg_rent,
+                AVG(rent_per_sqft) as avg_rent_per_sqft,
+                COUNT(*) as unit_count,
+                AVG(premium_discount_pct) as avg_premium_discount
+            FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+            WHERE has_complete_data = TRUE
+            {property_filter}
+            GROUP BY unit_type
+            ORDER BY unit_count DESC
             """
-            unit_type_result = self.client.query(unit_type_query).to_dataframe()
-            unit_type_comparison = unit_type_result.to_dict(orient='records')
+            
+            unit_result = self.client.query(unit_type_query).to_dataframe()
+            unit_type_comparison = unit_result.to_dict(orient='records')
             
             return {
                 'market_summary': market_summary,
-                'unit_type_comparison': unit_type_comparison
+                'unit_type_comparison': unit_type_comparison,
+                'filtered_properties': selected_properties or [],
+                'total_properties_in_filter': len(selected_properties) if selected_properties else None
             }
+            
         except Exception as e:
             logger.error(f"Error fetching market position analytics: {e}")
-            raise
+            return {
+                'market_summary': [],
+                'unit_type_comparison': [],
+                'error': str(e)
+            }
     
-    async def get_pricing_opportunities(self) -> Dict:
-        """Get pricing optimization opportunities."""
-        query = f"""
-        WITH pricing_analysis AS (
-          SELECT
-            u.unit_id,
-            u.property,
-            u.unit_type,
-            u.status,
-            u.advertised_rent,
-            u.pricing_urgency,
-            u.days_to_lease_end,
-            c.avg_comp_price,
+    async def get_pricing_opportunities(self, selected_properties: Optional[List[str]] = None) -> Dict:
+        """Get revenue optimization opportunities with optional property filtering."""
+        
+        # Build property filter clause
+        property_filter = ""
+        if selected_properties:
+            property_list = "', '".join(selected_properties)
+            property_filter = f"AND property IN ('{property_list}')"
+        
+        # Calculate basic revenue opportunity based on vacant units and below-market pricing
+        summary_query = f"""
+        SELECT 
+            COUNT(CASE WHEN status = 'VACANT' THEN 1 END) as vacant_units,
+            COUNT(CASE WHEN status = 'VACANT' AND advertised_rent > 0 THEN 1 END) as vacant_units_with_rent,
+            AVG(CASE WHEN status = 'OCCUPIED' THEN advertised_rent END) as avg_occupied_rent,
+            AVG(CASE WHEN status = 'VACANT' THEN advertised_rent END) as avg_vacant_rent,
+            SUM(CASE WHEN status = 'VACANT' THEN advertised_rent ELSE 0 END) as total_potential_monthly_revenue,
+            COUNT(*) as total_units
+        FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+        WHERE has_complete_data = TRUE
+          {property_filter}
+        """
+        
+        opportunities_query = f"""
+        SELECT 
+            unit_id,
+            property,
+            unit_type,
+            status,
+            advertised_rent,
+            market_rent,
             CASE 
-              WHEN c.avg_comp_price IS NOT NULL THEN 
-                ROUND(c.avg_comp_price - u.advertised_rent, 0)
-              ELSE NULL
-            END as potential_rent_increase,
+                WHEN status = 'VACANT' THEN advertised_rent 
+                ELSE 0 
+            END as potential_monthly_opportunity,
             CASE 
-              WHEN c.avg_comp_price IS NOT NULL THEN 
-                ROUND((c.avg_comp_price - u.advertised_rent) * 12, 0)
-              ELSE NULL
-            END as annual_revenue_opportunity
-          FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')} u
-          LEFT JOIN (
-            SELECT 
-              unit_id,
-              AVG(comp_price) as avg_comp_price
-            FROM {self._get_table_name(self.mart_dataset, 'unit_competitor_pairs')}
-            GROUP BY unit_id
-          ) c ON u.unit_id = c.unit_id
-        )
-        SELECT
-          SUM(CASE WHEN potential_rent_increase > 50 THEN 1 ELSE 0 END) as units_with_50plus_opportunity,
-          SUM(CASE WHEN potential_rent_increase > 100 THEN 1 ELSE 0 END) as units_with_100plus_opportunity,
-          SUM(CASE WHEN potential_rent_increase > 0 THEN potential_rent_increase ELSE 0 END) as total_monthly_opportunity,
-          SUM(CASE WHEN annual_revenue_opportunity > 0 THEN annual_revenue_opportunity ELSE 0 END) as total_annual_opportunity,
-          AVG(CASE WHEN potential_rent_increase > 0 THEN potential_rent_increase ELSE NULL END) as avg_opportunity_per_unit
-        FROM pricing_analysis
+                WHEN status = 'VACANT' THEN advertised_rent * 12 
+                ELSE 0 
+            END as annual_revenue_opportunity,
+            pricing_urgency,
+            move_out_date,
+            lease_end_date
+        FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+        WHERE has_complete_data = TRUE
+          {property_filter}
+          AND (status = 'VACANT' OR advertised_rent > market_rent * 0.95)
+        ORDER BY annual_revenue_opportunity DESC
+        LIMIT 50
         """
         
         try:
-            result = self.client.query(query).result()
-            summary = dict(list(result)[0])
+            # Get summary statistics
+            summary_result = self.client.query(summary_query).result()
+            summary_data = list(summary_result)[0]
+            
+            # Calculate opportunities based on vacant units potential revenue
+            vacant_units = summary_data.vacant_units or 0
+            vacant_units_with_rent = summary_data.vacant_units_with_rent or 0
+            total_potential_monthly = summary_data.total_potential_monthly_revenue or 0
+            total_potential_annual = total_potential_monthly * 12
             
             # Get top opportunities
-            top_query = f"""
-            WITH pricing_analysis AS (
-              SELECT
-                u.unit_id,
-                u.property,
-                u.unit_type,
-                u.status,
-                u.advertised_rent,
-                u.pricing_urgency,
-                u.days_to_lease_end,
-                c.avg_comp_price,
-                ROUND(c.avg_comp_price - u.advertised_rent, 0) as potential_rent_increase,
-                ROUND((c.avg_comp_price - u.advertised_rent) * 12, 0) as annual_revenue_opportunity
-              FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')} u
-              LEFT JOIN (
-                SELECT 
-                  unit_id,
-                  AVG(comp_price) as avg_comp_price
-                FROM {self._get_table_name(self.mart_dataset, 'unit_competitor_pairs')}
-                GROUP BY unit_id
-              ) c ON u.unit_id = c.unit_id
-            )
-            SELECT *
-            FROM pricing_analysis
-            WHERE potential_rent_increase > 0
-            ORDER BY annual_revenue_opportunity DESC
-            LIMIT 20
-            """
-            top_result = self.client.query(top_query).to_dataframe()
-            top_opportunities = top_result.to_dict(orient='records')
+            opportunities_result = self.client.query(opportunities_query).to_dataframe()
+            top_opportunities = opportunities_result.to_dict(orient='records')
             
             return {
-                'summary': summary,
-                'top_opportunities': top_opportunities
+                'summary': {
+                    'units_with_50plus_opportunity': vacant_units_with_rent,
+                    'units_with_100plus_opportunity': vacant_units,
+                    'total_monthly_opportunity': total_potential_monthly,
+                    'total_annual_opportunity': total_potential_annual,
+                    'avg_opportunity_per_unit': total_potential_monthly / vacant_units if vacant_units > 0 else 0
+                },
+                'top_opportunities': top_opportunities,
+                'filtered_properties': selected_properties or [],
+                'total_properties_in_filter': len(selected_properties) if selected_properties else None
             }
+            
         except Exception as e:
             logger.error(f"Error fetching pricing opportunities: {e}")
-            raise
+            return {
+                'summary': {
+                    'units_with_50plus_opportunity': 0,
+                    'units_with_100plus_opportunity': 0,
+                    'total_monthly_opportunity': 0,
+                    'total_annual_opportunity': 0,
+                    'avg_opportunity_per_unit': 0
+                },
+                'top_opportunities': [],
+                'filtered_properties': selected_properties or [],
+                'error': str(e)
+            }
 
     async def get_property_vs_competition_analysis(self, property_name: str) -> Dict:
         """Get comprehensive property vs competition analysis using real Competition data."""
@@ -640,25 +685,31 @@ class BigQueryService:
                     if len(market_result) > 0 and market_result.iloc[0]['avg_market_rent'] is not None and market_result.iloc[0]['comp_count'] > 0:
                         row_dict['avg_market_rent'] = int(market_result.iloc[0]['avg_market_rent'])
                         row_dict['avg_market_rent_per_sqft'] = float(market_result.iloc[0]['avg_market_rent_per_sqft'] or 0)
-                        if market_result.iloc[0]['avg_market_rent'] > 0:
+                        
+                        # Safe arithmetic with null checks
+                        our_rent = row.get('avg_our_rent') or 0
+                        market_rent = market_result.iloc[0]['avg_market_rent'] or 0
+                        
+                        if market_rent > 0 and our_rent is not None:
                             row_dict['avg_premium_discount_pct'] = round(
-                                (row['avg_our_rent'] - market_result.iloc[0]['avg_market_rent']) / 
-                                market_result.iloc[0]['avg_market_rent'] * 100, 1
+                                (our_rent - market_rent) / market_rent * 100, 1
                             )
                         else:
                             row_dict['avg_premium_discount_pct'] = 0
                         logger.info(f"Found {market_result.iloc[0]['comp_count']} comps for {row['unit_type']}: ${market_result.iloc[0]['avg_market_rent']}")
                     else:
                         # Fallback to mock if no competition data
-                        row_dict['avg_market_rent'] = int(row['avg_our_rent'] * 1.05)
-                        row_dict['avg_market_rent_per_sqft'] = round(row['avg_our_rent_per_sqft'] * 1.05, 2)
+                        our_rent = row.get('avg_our_rent') or 1000  # Default fallback
+                        row_dict['avg_market_rent'] = int(our_rent * 1.05)
+                        row_dict['avg_market_rent_per_sqft'] = round((row.get('avg_our_rent_per_sqft') or 1.0) * 1.05, 2)
                         row_dict['avg_premium_discount_pct'] = -4.8
                         logger.info(f"No comps found for {row['unit_type']} with filter {bed_filter}")
                 except Exception as e:
                     logger.warning(f"Competition query failed for {row['unit_type']}: {e}")
-                    # Fallback to mock
-                    row_dict['avg_market_rent'] = int(row['avg_our_rent'] * 1.05)
-                    row_dict['avg_market_rent_per_sqft'] = round(row['avg_our_rent_per_sqft'] * 1.05, 2)
+                    # Fallback to mock with safe values
+                    our_rent = row.get('avg_our_rent') or 1000  # Default fallback
+                    row_dict['avg_market_rent'] = int(our_rent * 1.05)
+                    row_dict['avg_market_rent_per_sqft'] = round((row.get('avg_our_rent_per_sqft') or 1.0) * 1.05, 2)
                     row_dict['avg_premium_discount_pct'] = -4.8
                 
                 overview_data.append(row_dict)
@@ -723,30 +774,44 @@ class BigQueryService:
                         row_dict['max_market_rent'] = int(comp_result.iloc[0]['max_market_rent'] or 0)
                         row_dict['avg_market_rent_per_sqft'] = float(comp_result.iloc[0]['avg_market_rent_per_sqft'] or 0)
                         row_dict['comp_count'] = int(comp_result.iloc[0]['comp_count'] or 0)
-                        if comp_result.iloc[0]['avg_market_rent'] and comp_result.iloc[0]['avg_market_rent'] > 0:
+                        
+                        # Safe arithmetic with null checks for rent gap calculation
+                        our_rent = row.get('avg_our_rent') or 0
+                        market_rent = comp_result.iloc[0]['avg_market_rent'] or 0
+                        
+                        if market_rent and market_rent > 0 and our_rent is not None:
                             row_dict['rent_gap_pct'] = round(
-                                (row['avg_our_rent'] - comp_result.iloc[0]['avg_market_rent']) / 
-                                comp_result.iloc[0]['avg_market_rent'] * 100, 1
+                                (our_rent - market_rent) / market_rent * 100, 1
                             )
                         else:
                             row_dict['rent_gap_pct'] = 0
                         logger.info(f"Found {comp_result.iloc[0]['comp_count']} comps for {row['bed']} bed: ${comp_result.iloc[0]['avg_market_rent']}")
                     else:
-                        # Fallback to mock if no data
-                        row_dict['avg_market_rent'] = int(row['avg_our_rent'] * 1.05)
-                        row_dict['min_market_rent'] = int(row['min_our_rent'] * 0.95)
-                        row_dict['max_market_rent'] = int(row['max_our_rent'] * 1.15)
-                        row_dict['avg_market_rent_per_sqft'] = round(row['avg_our_rent_per_sqft'] * 1.05, 2)
+                        # Fallback to mock if no data - with safe arithmetic
+                        our_rent = row.get('avg_our_rent') or 1000
+                        min_rent = row.get('min_our_rent') or 900
+                        max_rent = row.get('max_our_rent') or 1100
+                        rent_per_sqft = row.get('avg_our_rent_per_sqft') or 1.0
+                        
+                        row_dict['avg_market_rent'] = int(our_rent * 1.05)
+                        row_dict['min_market_rent'] = int(min_rent * 0.95)
+                        row_dict['max_market_rent'] = int(max_rent * 1.15)
+                        row_dict['avg_market_rent_per_sqft'] = round(rent_per_sqft * 1.05, 2)
                         row_dict['comp_count'] = 25
                         row_dict['rent_gap_pct'] = -4.8
                         logger.info(f"No comps found for {row['bed']} bed with filter {bed_text}")
                 except Exception as e:
                     logger.warning(f"Competition query failed for {row['bed']} bed: {e}")
-                    # Fallback to mock
-                    row_dict['avg_market_rent'] = int(row['avg_our_rent'] * 1.05)
-                    row_dict['min_market_rent'] = int(row['min_our_rent'] * 0.95)
-                    row_dict['max_market_rent'] = int(row['max_our_rent'] * 1.15)
-                    row_dict['avg_market_rent_per_sqft'] = round(row['avg_our_rent_per_sqft'] * 1.05, 2)
+                    # Fallback to mock - with safe arithmetic
+                    our_rent = row.get('avg_our_rent') or 1000
+                    min_rent = row.get('min_our_rent') or 900
+                    max_rent = row.get('max_our_rent') or 1100
+                    rent_per_sqft = row.get('avg_our_rent_per_sqft') or 1.0
+                    
+                    row_dict['avg_market_rent'] = int(our_rent * 1.05)
+                    row_dict['min_market_rent'] = int(min_rent * 0.95)
+                    row_dict['max_market_rent'] = int(max_rent * 1.15)
+                    row_dict['avg_market_rent_per_sqft'] = round(rent_per_sqft * 1.05, 2)
                     row_dict['comp_count'] = 25
                     row_dict['rent_gap_pct'] = -4.8
                 
@@ -777,8 +842,10 @@ class BigQueryService:
             else:
                 performance_data['occupancy_rate'] = 0
                 
-            # Revenue opportunity
-            performance_data['revenue_opportunity'] = performance_data['total_revenue_potential'] - performance_data['current_annual_revenue']
+            # Revenue opportunity - safe arithmetic with null checks
+            total_revenue_potential = performance_data.get('total_revenue_potential') or 0
+            current_annual_revenue = performance_data.get('current_annual_revenue') or 0
+            performance_data['revenue_opportunity'] = total_revenue_potential - current_annual_revenue
             
             return {
                 'property_name': property_name,
@@ -1409,7 +1476,7 @@ class BigQueryService:
                   ELSE '$2,000+'
                 END as rent_bucket,
                 COUNT(*) as unit_count,
-                AVG(Days_Vacant) as avg_days_vacant
+                COALESCE(ROUND(AVG(CASE WHEN Days_Vacant IS NOT NULL THEN Days_Vacant END), 1), 0) as avg_days_vacant
               FROM `rentroll-ai.rentroll.SvSN`
               WHERE Market_Rent > 0 
                 {bedroom_filter}
@@ -1420,7 +1487,7 @@ class BigQueryService:
               Bedrooms,
               rent_bucket,
               unit_count,
-              ROUND(avg_days_vacant, 1) as avg_days_vacant
+              avg_days_vacant
             FROM rent_buckets
             ORDER BY Bedrooms, 
               CASE rent_bucket
@@ -1436,7 +1503,12 @@ class BigQueryService:
             """
             
             result = self.client.query(query).to_dataframe()
-            data = result.to_dict(orient='records')
+            
+            # Clean the DataFrame to handle NaN values
+            result = result.fillna(0)  # Replace NaN with 0
+            
+            # Convert to dict with proper serialization
+            data = serialize_for_json(result.to_dict(orient='records'))
             
             logger.info(f"SvSN market rent clustering returned {len(data)} rent bucket segments")
             

@@ -61,6 +61,7 @@ import type {
   SvSNClusteringResponse,
   SvSNRecommendationResponse,
 } from '@/types/api';
+import { usePropertySelection } from '@/contexts/PropertySelectionContext';
 
 const COLORS = {
   nustyle: '#01D1D1',
@@ -404,14 +405,30 @@ const AnalyticsPage: React.FC = () => {
                       height={120}
                       fontSize={11}
                       interval={0}
+                      tick={{ fill: '#ffffff' }}
                     />
                     <YAxis />
                     <Tooltip 
-                      formatter={(value: any, name: string) => [
+                      formatter={(value: any, name: string, props: any) => [
                         name === 'rent' ? formatCurrency(value) : value,
                         name === 'rent' ? 'Market Rent' : name
                       ]}
-                      labelFormatter={(label) => `Property: ${label}`}
+                      labelFormatter={(label, payload) => {
+                        const data = payload?.[0]?.payload;
+                        return `Property: ${label}${data ? ` (${data.units} units)` : ''}`;
+                      }}
+                      contentStyle={{
+                        backgroundColor: 'rgba(42, 42, 48, 0.95)',
+                        border: '1px solid rgba(1, 209, 209, 0.3)',
+                        borderRadius: '8px',
+                        color: '#ffffff'
+                      }}
+                      labelStyle={{
+                        color: '#ffffff'
+                      }}
+                      itemStyle={{
+                        color: '#ffffff'
+                      }}
                     />
                     <Bar 
                       dataKey="rent" 
@@ -433,15 +450,14 @@ const AnalyticsPage: React.FC = () => {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Rent Per Square Foot Comparison
+                  Rent Per Square Foot Comparison by Property
                 </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  {bedroomFilter !== 'All' ? `${bedroomFilter} bedroom units` : 'All bedroom types'} - 
+                <Typography variant="body2" sx={{ mb: 2, color: 'rgba(255, 255, 255, 0.8)' }}>
                   <span style={{ color: COLORS.nustyle, fontWeight: 'bold' }}> ● NuStyle</span> vs 
                   <span style={{ color: COLORS.competition, fontWeight: 'bold' }}> ● Competition</span>
                 </Typography>
                 <ResponsiveContainer width="100%" height={500}>
-                  <BarChart data={prepareBenchmarkData().sort((a, b) => b.psf - a.psf)} margin={{ bottom: 100, left: 20, right: 20 }}>
+                  <BarChart data={prepareBenchmarkData().sort((a: any, b: any) => b.psf - a.psf)} margin={{ bottom: 100, left: 20, right: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis 
                       dataKey="property" 
@@ -450,14 +466,37 @@ const AnalyticsPage: React.FC = () => {
                       height={120}
                       fontSize={11}
                       interval={0}
+                      tick={{ fill: '#ffffff' }}
                     />
                     <YAxis />
                     <Tooltip 
-                      formatter={(value: any) => [`$${value?.toFixed(2)}`, 'PSF']}
-                      labelFormatter={(label) => `Property: ${label}`}
+                      formatter={(value: any, name: string, props: any) => [
+                        name === 'psf' ? `$${value.toFixed(2)}/sqft` : value,
+                        name === 'psf' ? 'Rent Per Sq Ft' : name
+                      ]}
+                      labelFormatter={(label, payload) => {
+                        const data = payload?.[0]?.payload;
+                        return `Property: ${label}${data ? ` (${data.units} units)` : ''}`;
+                      }}
+                      contentStyle={{
+                        backgroundColor: 'rgba(42, 42, 48, 0.95)',
+                        border: '1px solid rgba(1, 209, 209, 0.3)',
+                        borderRadius: '8px',
+                        color: '#ffffff'
+                      }}
+                      labelStyle={{
+                        color: '#ffffff'
+                      }}
+                      itemStyle={{
+                        color: '#ffffff'
+                      }}
                     />
-                    <Bar dataKey="psf" name="Rent PSF">
-                      {prepareBenchmarkData().sort((a, b) => b.psf - a.psf).map((entry, index) => (
+                    <Bar 
+                      dataKey="psf" 
+                      name="Rent Per Sq Ft"
+                      fill="#8884d8"
+                    >
+                      {prepareBenchmarkData().map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Bar>
@@ -535,11 +574,33 @@ const AnalyticsPage: React.FC = () => {
                       textAnchor="end"
                       height={80}
                       fontSize={10}
+                      tick={{ fill: '#ffffff' }}
                     />
                     <YAxis />
-                    <Tooltip />
+                    <Tooltip 
+                      formatter={(value: any, name: string, props: any) => [
+                        `${value} days`,
+                        'Avg Days Vacant'
+                      ]}
+                      labelFormatter={(label, payload) => {
+                        const data = payload?.[0]?.payload;
+                        return `Property: ${label}${data ? ` (${data.totalUnits} units)` : ''}`;
+                      }}
+                      contentStyle={{
+                        backgroundColor: 'rgba(42, 42, 48, 0.95)',
+                        border: '1px solid rgba(1, 209, 209, 0.3)',
+                        borderRadius: '8px',
+                        color: '#ffffff'
+                      }}
+                      labelStyle={{
+                        color: '#ffffff'
+                      }}
+                      itemStyle={{
+                        color: '#ffffff'
+                      }}
+                    />
                     <Bar dataKey="avgDaysVacant" name="Avg Days Vacant">
-                      {prepareVacancyData().map((entry, index) => (
+                      {prepareVacancyData().map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Bar>
@@ -564,11 +625,33 @@ const AnalyticsPage: React.FC = () => {
                       textAnchor="end"
                       height={80}
                       fontSize={10}
+                      tick={{ fill: '#ffffff' }}
                     />
                     <YAxis />
-                    <Tooltip formatter={(value: any) => [`${value}%`, '% Vacant 30+ Days']} />
+                    <Tooltip 
+                      formatter={(value: any, name: string, props: any) => [
+                        `${value}%`,
+                        '% Vacant 30+ Days'
+                      ]}
+                      labelFormatter={(label, payload) => {
+                        const data = payload?.[0]?.payload;
+                        return `Property: ${label}${data ? ` (${data.unitsVacant30Plus} of ${data.totalUnits} units)` : ''}`;
+                      }}
+                      contentStyle={{
+                        backgroundColor: 'rgba(42, 42, 48, 0.95)',
+                        border: '1px solid rgba(1, 209, 209, 0.3)',
+                        borderRadius: '8px',
+                        color: '#ffffff'
+                      }}
+                      labelStyle={{
+                        color: '#ffffff'
+                      }}
+                      itemStyle={{
+                        color: '#ffffff'
+                      }}
+                    />
                     <Bar dataKey="pctVacant30Plus" name="% Vacant 30+ Days">
-                      {prepareVacancyData().map((entry, index) => (
+                      {prepareVacancyData().map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Bar>
@@ -697,9 +780,32 @@ const AnalyticsPage: React.FC = () => {
                 <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={prepareClusteringData()}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="rentBucket" angle={-45} textAnchor="end" height={80} />
+                    <XAxis 
+                      dataKey="rentBucket" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={80}
+                      tick={{ fill: '#ffffff' }}
+                    />
                     <YAxis />
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: 'rgba(42, 42, 48, 0.95)',
+                        border: '1px solid rgba(1, 209, 209, 0.3)',
+                        borderRadius: '8px',
+                        color: '#ffffff'
+                      }}
+                      formatter={(value: any, name: string) => [
+                        `${value} units`,
+                        name
+                      ]}
+                      labelStyle={{
+                        color: '#ffffff'
+                      }}
+                      itemStyle={{
+                        color: '#ffffff'
+                      }}
+                    />
                     <Bar dataKey="nustyleUnits" fill={COLORS.nustyle} name="NuStyle Units" />
                     <Bar dataKey="competitionUnits" fill={COLORS.competition} name="Competition Units" />
                   </BarChart>

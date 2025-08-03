@@ -1,190 +1,198 @@
-# 🚀 Deployment Guide: Railway + Vercel
+# 🚀 Production Deployment Guide
 
-This guide will help you deploy your AI Rent Optimizer to production using Railway (backend) and Vercel (frontend).
+Deploy **RentRoll AI Optimizer** with Railway (backend) and Vercel (frontend) for a production-ready setup.
 
 ## 📋 Prerequisites
 
-- ✅ Google Cloud service account JSON file with BigQuery access
-- ✅ GitHub repository with your code
-- ✅ Railway account (free tier available)
-- ✅ Vercel account (free tier available)
+- **Railway Account**: [railway.app](https://railway.app)
+- **Vercel Account**: [vercel.com](https://vercel.com)
+- **Google Cloud Service Account** with BigQuery access
+- **GitHub Repository** (for automatic deployments)
 
-## 🔑 Step 1: Prepare Google Cloud Credentials
+## 🔧 Part 1: Railway Backend Deployment
 
-### Encode Your Service Account for Railway
+### Step 1: Prepare Service Account Credentials
 
-```bash
-# Run this from your project root
-python scripts/encode-credentials.py path/to/your-service-account.json
-```
-
-This will output a base64-encoded string. **Copy this** - you'll need it for Railway.
-
-## 🚂 Step 2: Deploy Backend to Railway
-
-### 2.1 Create Railway Project
-
-1. Go to [railway.app](https://railway.app) and sign in
-2. Click **"New Project"**
-3. Select **"Deploy from GitHub repo"**
-4. Choose your `BigQuery_6` repository
-5. Railway will detect it's a Python app
-
-### 2.2 Configure Environment Variables
-
-In your Railway dashboard, add these environment variables:
-
-```bash
-# Required - Google Cloud Authentication
-GOOGLE_APPLICATION_CREDENTIALS_BASE64=<paste-your-base64-string-here>
-
-# Required - BigQuery Configuration
-BIGQUERY_PROJECT_ID=your-google-cloud-project-id
-RENTROLL_TABLE_ID=your-project.dataset.rentroll_table
-COMPETITION_TABLE_ID=your-project.dataset.competition_table
-
-# Optional - Application Settings
-DEBUG=false
-LOG_LEVEL=INFO
-```
-
-### 2.3 Deploy
-
-1. Railway will automatically deploy your backend
-2. Wait for deployment to complete
-3. Note your Railway URL (e.g., `https://your-app-name.up.railway.app`)
-
-## ⚡ Step 3: Deploy Frontend to Vercel
-
-### 3.1 Create Vercel Project
-
-1. Go to [vercel.com](https://vercel.com) and sign in
-2. Click **"New Project"**
-3. Import your GitHub repository
-4. Set **Root Directory** to `frontend`
-5. Framework Preset: **Vite**
-
-### 3.2 Configure Environment Variables
-
-In Vercel dashboard, add these environment variables:
-
-```bash
-# Required - API Configuration  
-VITE_API_URL=https://your-railway-app.up.railway.app/api/v1
-
-# Required - Application Settings
-VITE_DEMO_MODE=false
-VITE_APP_NAME=AI Rent Optimizer
-VITE_APP_VERSION=1.0.0
-NODE_ENV=production
-```
-
-### 3.3 Deploy
-
-1. Click **"Deploy"**
-2. Vercel will build and deploy your frontend
-3. Note your Vercel URL (e.g., `https://your-app.vercel.app`)
-
-## 🔧 Step 4: Update CORS Settings
-
-Once you have your Vercel URL, update the backend CORS settings:
-
-1. In Railway dashboard, add environment variable:
+1. **Download your Google Cloud service account JSON file**
+2. **Encode it to base64**:
    ```bash
-   CORS_ORIGINS=https://your-actual-vercel-domain.vercel.app
+   cd scripts
+   python encode-credentials.py path/to/your-service-account.json
+   ```
+3. **Copy the base64 string** (you'll need this for Railway)
+
+### Step 2: Deploy to Railway
+
+1. **Push your code to GitHub** (if not already done)
+2. **Go to Railway Dashboard**: [railway.app](https://railway.app)
+3. **Create New Project** → **Deploy from GitHub repo**
+4. **Select your repository** and choose the `backend` folder
+5. **Set Environment Variables** in Railway dashboard:
+
+   ```env
+   # Required Variables
+   GOOGLE_APPLICATION_CREDENTIALS_BASE64=<your-base64-encoded-json>
+   BIGQUERY_PROJECT_ID=rentroll-ai
+   RENTROLL_TABLE_ID=rentroll-ai.rentroll.Update_7_8_native
+   COMPETITION_TABLE_ID=rentroll-ai.rentroll.Competition
+   ARCHIVE_TABLE_ID=rentroll-ai.rentroll.ArchiveAptMain
+   
+   # API Configuration
+   API_PREFIX=/api/v1
+   DEBUG=false
+   LOG_LEVEL=INFO
+   
+   # Server Configuration
+   PORT=$PORT
+   HOST=0.0.0.0
+   
+   # Pricing Configuration
+   MAX_PRICE_ADJUSTMENT=0.15
+   DEFAULT_DEMAND_ELASTICITY=2.0
+   
+   # CORS (update with your Vercel domain)
+   CORS_ORIGINS=https://*.vercel.app,https://your-app-name.vercel.app
    ```
 
-2. Or update the code in `backend/app/main.py` and redeploy.
+6. **Deploy** - Railway will automatically build and deploy
+7. **Copy your Railway domain** (e.g., `https://your-app.railway.app`)
 
-## ✅ Step 5: Test Your Deployment
+### Step 3: Test Railway Deployment
 
-### 5.1 Health Check
+```bash
+# Test health endpoint
+curl https://your-app.railway.app/health
 
-Visit: `https://your-railway-app.up.railway.app/health`
-
-You should see:
-```json
-{
-  "status": "healthy",
-  "bigquery_connection": true,
-  "timestamp": "2024-01-01T12:00:00Z"
-}
+# Test API endpoint
+curl https://your-app.railway.app/api/v1/properties
 ```
 
-### 5.2 Frontend Test
+## 🌐 Part 2: Vercel Frontend Deployment
 
-1. Visit your Vercel URL
-2. Log in with demo credentials
-3. Go to Settings page and test BigQuery connections
-4. Verify data loads in Dashboard and Units pages
+### Step 1: Update Frontend Environment
 
-## 🛠️ Troubleshooting
+1. **Create/update `frontend/.env.production`**:
+   ```env
+   VITE_API_URL=https://your-app.railway.app/api/v1
+   VITE_DEMO_MODE=false
+   ```
 
-### Backend Issues
+### Step 2: Deploy to Vercel
 
-**"BigQuery connection failed"**
-- Verify your base64 credentials are correct
-- Check BigQuery table IDs match your actual tables
-- Ensure service account has BigQuery Data Viewer permissions
+1. **Go to Vercel Dashboard**: [vercel.com](https://vercel.com)
+2. **Import Project** → **Import Git Repository**
+3. **Select your repository**
+4. **Configure Project**:
+   - **Framework Preset**: `Vite`
+   - **Root Directory**: `frontend`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
 
-**"Internal Server Error"**
-- Check Railway logs for detailed error messages
-- Verify all required environment variables are set
+5. **Set Environment Variables** in Vercel dashboard:
+   ```env
+   VITE_API_URL=https://your-app.railway.app/api/v1
+   VITE_DEMO_MODE=false
+   ```
 
-### Frontend Issues
+6. **Deploy** - Vercel will build and deploy automatically
+7. **Copy your Vercel domain** (e.g., `https://your-app.vercel.app`)
 
-**"Failed to fetch from API"**
-- Check that VITE_API_URL points to your Railway domain
-- Verify CORS is configured correctly
-- Check Railway backend is healthy
+### Step 3: Update CORS Settings
 
-**"Charts not loading"**
-- Usually means API calls are timing out
-- Check BigQuery query performance
-- Verify your data tables have reasonable row counts
+1. **Go back to Railway dashboard**
+2. **Update the `CORS_ORIGINS` environment variable**:
+   ```env
+   CORS_ORIGINS=https://*.vercel.app,https://your-app.vercel.app
+   ```
+3. **Redeploy Railway backend**
 
-## 🔄 Making Updates
+## ✅ Part 3: Verification
 
-### Backend Updates
-1. Push changes to GitHub
-2. Railway auto-deploys from your main branch
+### Test Complete System
 
-### Frontend Updates  
-1. Push changes to GitHub
-2. Vercel auto-deploys from your main branch
+1. **Open your Vercel URL**: `https://your-app.vercel.app`
+2. **Login** with demo credentials or your auth system
+3. **Test each page**:
+   - ✅ Dashboard loads with real data
+   - ✅ Units page shows filtered data
+   - ✅ Analytics page displays charts
+   - ✅ Market Research page works
+   - ✅ Settings page can test connections
 
-## 💡 Production Tips
+### Check API Health
+
+```bash
+# Health check
+curl https://your-app.railway.app/health
+
+# Properties endpoint
+curl https://your-app.railway.app/api/v1/properties
+
+# Settings test
+curl -X POST https://your-app.railway.app/api/v1/settings/test \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "rentroll-ai",
+    "rentroll_table": "rentroll-ai.rentroll.Update_7_8_native",
+    "competition_table": "rentroll-ai.rentroll.Competition",
+    "archive_table": "rentroll-ai.rentroll.ArchiveAptMain"
+  }'
+```
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+1. **CORS Errors**:
+   - Ensure `CORS_ORIGINS` includes your exact Vercel domain
+   - Check browser developer tools for specific CORS messages
+
+2. **BigQuery Connection Issues**:
+   - Verify `GOOGLE_APPLICATION_CREDENTIALS_BASE64` is correctly encoded
+   - Test table access using Settings page
+   - Check Railway logs for authentication errors
+
+3. **Environment Variable Issues**:
+   - Use Railway/Vercel dashboard to verify all variables are set
+   - Restart deployments after changing environment variables
+
+### Viewing Logs
+
+- **Railway**: Dashboard → Your Service → Deployments → View Logs
+- **Vercel**: Dashboard → Your Project → Functions → View Function Logs
+
+## 🚀 Production Optimizations
 
 ### Security
-- Update CORS origins to only include your actual domains
-- Set `DEBUG=false` in production
-- Monitor Railway and Vercel logs
+- [ ] Enable Railway private networking if needed
+- [ ] Set up custom domains with SSL
+- [ ] Review and limit BigQuery access permissions
+- [ ] Enable API rate limiting if needed
 
 ### Performance
-- Railway: Consider upgrading to paid plan for better performance
-- Vercel: Free tier is usually sufficient for frontends
-- BigQuery: Monitor query costs and optimize if needed
+- [ ] Enable Vercel analytics
+- [ ] Set up Railway metrics monitoring
+- [ ] Configure caching headers
+- [ ] Optimize BigQuery queries for cost
 
 ### Monitoring
-- Set up Railway notifications for deployment failures
-- Monitor Vercel analytics for frontend performance
-- Use Google Cloud Console to monitor BigQuery usage
+- [ ] Set up uptime monitoring (Pingdom, etc.)
+- [ ] Configure error tracking (Sentry, etc.)
+- [ ] Set up log aggregation
+- [ ] Monitor BigQuery usage and costs
 
-## 🎯 Final Configuration
+## 📞 Support
 
-After successful deployment, your architecture will be:
+If you encounter issues:
+1. Check the logs in Railway/Vercel dashboards
+2. Test individual API endpoints
+3. Verify environment variables
+4. Check this guide for troubleshooting steps
 
-```
-[Users] → [Vercel Frontend] → [Railway Backend] → [Google BigQuery]
-```
+---
 
-**Frontend**: `https://your-app.vercel.app`  
-**Backend**: `https://your-app.up.railway.app`  
-**Health Check**: `https://your-app.up.railway.app/health`
+**🎉 Your RentRoll AI Optimizer is now live in production!**
 
-## 📞 Need Help?
-
-- **Railway Issues**: Check Railway docs and Discord
-- **Vercel Issues**: Check Vercel docs and GitHub discussions
-- **BigQuery Issues**: Check Google Cloud documentation
-- **Application Issues**: Check the logs in both Railway and Vercel dashboards 
+- **Frontend**: `https://your-app.vercel.app`
+- **Backend**: `https://your-app.railway.app`
+- **API Health**: `https://your-app.railway.app/health` 

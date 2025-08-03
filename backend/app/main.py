@@ -5,7 +5,7 @@ import asyncio
 import logging
 import json
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,7 +25,25 @@ from app.models import (
     UnitsListResponse,
 )
 from app.pricing import create_optimizer
+from app.utils import CustomJSONEncoder, safe_json_response
 from pydantic import BaseModel
+
+# Custom JSON Response class
+class SafeJSONResponse(JSONResponse):
+    """
+    Custom JSONResponse that handles pandas/numpy data types and NaN values.
+    """
+    def render(self, content) -> bytes:
+        # Clean the content for safe JSON serialization
+        safe_content = safe_json_response(content)
+        return json.dumps(
+            safe_content,
+            cls=CustomJSONEncoder,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
 # Settings models
 class TableSettings(BaseModel):
@@ -95,14 +113,15 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",  # Local development
-        "http://localhost:3004",  # Local development (alternative port)
-        "http://localhost:3005",  # Local development (alternative port)
-        "https://*.vercel.app",   # Vercel deployments
-        "*"  # Temporary - update with your actual Vercel domain
+        "http://localhost:3000",
+        "http://localhost:3004", 
+        "http://localhost:3005",
+        "http://localhost:3006",  # Add new frontend port
+        "https://*.vercel.app",
+        "*"  # Temporary - remove in production
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -145,6 +164,7 @@ async def get_units(
     page_size: int = Query(50, ge=1, le=500, description="Items per page"),
     status: Optional[str] = Query(None, description="Filter by unit status"),
     property: Optional[str] = Query(None, description="Filter by property"),
+    properties: Optional[List[str]] = Query(default=None, description="Filter by multiple properties"),
     needs_pricing_only: bool = Query(False, description="Only units needing pricing")
 ):
     """Get paginated list of units."""
@@ -154,6 +174,7 @@ async def get_units(
             page_size=page_size,
             status_filter=status,
             property_filter=property,
+            properties_filter=properties,
             needs_pricing_only=needs_pricing_only
         )
         
@@ -378,36 +399,34 @@ async def get_summary():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get(f"{settings.api_prefix}/analytics/portfolio")
-async def get_portfolio_analytics():
-    """Get comprehensive portfolio analytics for dashboard."""
+@app.get("/api/v1/analytics/portfolio")
+async def get_portfolio_analytics(properties: Optional[List[str]] = Query(default=None)):
+    """Get portfolio-wide analytics data with optional property filtering."""
     try:
-        analytics = await db_service.get_portfolio_analytics()
-        return analytics
+        result = await db_service.get_portfolio_analytics(selected_properties=properties)
+        return SafeJSONResponse(content=result)
     except Exception as e:
-        logger.error(f"Error getting portfolio analytics: {e}")
+        logger.error(f"Error in portfolio analytics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.get(f"{settings.api_prefix}/analytics/market-position")
-async def get_market_position():
-    """Get market positioning analytics."""
+@app.get("/api/v1/analytics/market-position")
+async def get_market_position_analytics(properties: Optional[List[str]] = Query(default=None)):
+    """Get market position analytics with optional property filtering."""
     try:
-        market_data = await db_service.get_market_position_analytics()
-        return market_data
+        result = await db_service.get_market_position_analytics(selected_properties=properties)
+        return SafeJSONResponse(content=result)
     except Exception as e:
-        logger.error(f"Error getting market position analytics: {e}")
+        logger.error(f"Error in market position analytics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.get(f"{settings.api_prefix}/analytics/pricing-opportunities")
-async def get_pricing_opportunities():
-    """Get pricing optimization opportunities."""
+@app.get("/api/v1/analytics/pricing-opportunities")
+async def get_pricing_opportunities(properties: Optional[List[str]] = Query(default=None)):
+    """Get pricing opportunities with optional property filtering."""
     try:
-        opportunities = await db_service.get_pricing_opportunities()
-        return opportunities
+        result = await db_service.get_pricing_opportunities(selected_properties=properties)
+        return SafeJSONResponse(content=result)
     except Exception as e:
-        logger.error(f"Error getting pricing opportunities: {e}")
+        logger.error(f"Error in pricing opportunities: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -454,7 +473,7 @@ async def get_property_competition_analysis(property_name: str):
         decoded_property_name = unquote(property_name)
         
         analysis = await db_service.get_property_vs_competition_analysis(decoded_property_name)
-        return analysis
+        return SafeJSONResponse(content=analysis)
     except Exception as e:
         logger.error(f"Error getting property competition analysis for {property_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -469,7 +488,7 @@ async def get_property_units_analysis(property_name: str):
         decoded_property_name = unquote(property_name)
         
         analysis = await db_service.get_property_unit_analysis(decoded_property_name)
-        return analysis
+        return SafeJSONResponse(content=analysis)
     except Exception as e:
         logger.error(f"Error getting property units analysis for {property_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -484,7 +503,7 @@ async def get_property_market_trends(property_name: str):
         decoded_property_name = unquote(property_name)
         
         trends = await db_service.get_property_market_trends(decoded_property_name)
-        return trends
+        return SafeJSONResponse(content=trends)
     except Exception as e:
         logger.error(f"Error getting property market trends for {property_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -611,7 +630,7 @@ async def get_svsn_benchmark_analysis(bedroom_type: Optional[str] = Query(None))
     """Get benchmark bar charts comparing NuStyle vs Competition by bedroom type."""
     try:
         result = await db_service.get_svsn_benchmark_analysis(bedroom_type)
-        return result
+        return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in SvSN benchmark analysis endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -621,7 +640,7 @@ async def get_svsn_vacancy_analysis(bedroom_type: Optional[str] = Query(None)):
     """Get vacancy performance analysis by bedroom type."""
     try:
         result = await db_service.get_svsn_vacancy_analysis(bedroom_type)
-        return result
+        return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in SvSN vacancy analysis endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -631,7 +650,7 @@ async def get_svsn_rent_spread_analysis():
     """Get rent spread analysis for NuStyle units (Advertised vs Market rent)."""
     try:
         result = await db_service.get_svsn_rent_spread_analysis()
-        return result
+        return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in SvSN rent spread analysis endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -641,7 +660,7 @@ async def get_svsn_market_rent_clustering(bedroom_type: Optional[str] = Query(No
     """Get market rent clustering analysis with rent buckets."""
     try:
         result = await db_service.get_svsn_market_rent_clustering(bedroom_type)
-        return result
+        return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in SvSN market rent clustering endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -651,7 +670,7 @@ async def get_svsn_optimization_recommendations():
     """Get optimization recommendations for NuStyle units."""
     try:
         result = await db_service.get_svsn_optimization_recommendations()
-        return result
+        return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in SvSN optimization recommendations endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -663,7 +682,7 @@ async def get_archive_benchmark(bedroom_type: Optional[str] = None):
     """Get benchmark analysis for Archive properties."""
     try:
         result = await db_service.get_archive_benchmark_analysis(bedroom_type)
-        return result
+        return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in archive benchmark endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -673,7 +692,7 @@ async def get_archive_vacancy(bedroom_type: Optional[str] = None):
     """Get vacancy performance analysis for Archive properties."""
     try:
         result = await db_service.get_archive_vacancy_analysis(bedroom_type)
-        return result
+        return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in archive vacancy endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -683,7 +702,7 @@ async def get_archive_rent_spread():
     """Get rent spread analysis for Archive properties."""
     try:
         result = await db_service.get_archive_rent_spread_analysis()
-        return result
+        return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in archive rent spread endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -693,7 +712,7 @@ async def get_archive_clustering(bedroom_type: Optional[str] = None):
     """Get market rent clustering analysis for Archive properties."""
     try:
         result = await db_service.get_archive_market_rent_clustering(bedroom_type)
-        return result
+        return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in archive clustering endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -703,7 +722,7 @@ async def get_archive_recommendations():
     """Get optimization recommendations for Archive properties."""
     try:
         result = await db_service.get_archive_optimization_recommendations()
-        return result
+        return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in archive recommendations endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))

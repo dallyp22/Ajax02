@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -63,6 +63,7 @@ import {
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
+import { usePropertySelection } from '@/contexts/PropertySelectionContext';
 
 const COLORS = ['#01D1D1', '#2A9D8F', '#F4A261', '#E76F51', '#8884D8', '#82CA9D', '#FFC658'];
 
@@ -85,22 +86,29 @@ const DashboardPage: React.FC = () => {
   const [selectedProperty, setSelectedProperty] = useState<string>('');
   const [activeTab, setActiveTab] = useState(0);
   const [showUnitDetails, setShowUnitDetails] = useState(false);
+  const { selectedProperties } = usePropertySelection();
 
-  // Fetch portfolio-wide data
+  // Fetch portfolio-wide data with property filtering
   const { data: portfolioData, isLoading: portfolioLoading, error: portfolioError } = useQuery({
-    queryKey: ['portfolio-analytics'],
-    queryFn: () => apiService.getPortfolioAnalytics(),
+    queryKey: ['portfolio-analytics', selectedProperties],
+    queryFn: () => apiService.getPortfolioAnalytics(selectedProperties.length > 0 ? selectedProperties : undefined),
   });
 
   const { data: marketData } = useQuery({
-    queryKey: ['market-position'],
-    queryFn: () => apiService.getMarketPosition(),
+    queryKey: ['market-position', selectedProperties],
+    queryFn: () => apiService.getMarketPosition(selectedProperties.length > 0 ? selectedProperties : undefined),
   });
 
   const { data: opportunitiesData } = useQuery({
-    queryKey: ['pricing-opportunities'],
-    queryFn: () => apiService.getPricingOpportunities(),
+    queryKey: ['pricing-opportunities', selectedProperties],
+    queryFn: () => apiService.getPricingOpportunities(selectedProperties.length > 0 ? selectedProperties : undefined),
   });
+
+  // Debug logging
+  React.useEffect(() => {
+    console.log('🏢 Selected properties changed:', selectedProperties);
+    console.log('📊 Portfolio data:', portfolioData);
+  }, [selectedProperties, portfolioData]);
 
   // Fetch property list
   const { data: propertiesData } = useQuery({
@@ -145,7 +153,9 @@ const DashboardPage: React.FC = () => {
     );
   }
 
-  const portfolio = portfolioData?.portfolio || {};
+  const portfolio = portfolioData?.portfolio_summary || {};
+  const urgencyBreakdown = portfolioData?.vacancy_by_urgency || [];
+  const propertyPerformance = portfolioData?.top_properties || [];
   const marketSummary = marketData?.market_summary || [];
   const opportunities = opportunitiesData?.summary || {};
   const properties = propertiesData?.properties || [];
@@ -230,7 +240,31 @@ const DashboardPage: React.FC = () => {
           overflow: 'hidden',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        {/* Debug info for property filtering */}
+        {selectedProperties.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <Chip
+              label={`Filtered: ${selectedProperties.length} properties selected`}
+              color="primary"
+              size="small"
+              sx={{
+                backgroundColor: 'rgba(1, 209, 209, 0.2)',
+                color: '#01D1D1',
+                border: '1px solid rgba(1, 209, 209, 0.3)',
+              }}
+            />
+          </Box>
+        )}
+
+        {/* Header */}
+        <Box 
+          display="flex" 
+          justifyContent="space-between" 
+          alignItems="center" 
+          mb={4}
+          flexDirection={{ xs: 'column', md: 'row' }}
+          gap={2}
+        >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Box
               sx={{
@@ -414,7 +448,7 @@ const DashboardPage: React.FC = () => {
                       ANNUAL REVENUE
                     </Typography>
                     <Typography variant="h4" sx={{ fontWeight: 700, color: '#2A9D8F', mt: 1, fontSize: '1.75rem' }}>
-                      {formatCurrency(portfolio.current_annual_revenue || 0)}
+                      {formatCurrency(portfolio.estimated_annual_revenue || 0)}
                     </Typography>
                   </Box>
                   <MoneyIcon sx={{ fontSize: 48, color: '#2A9D8F', opacity: 0.8 }} />
@@ -486,17 +520,22 @@ const DashboardPage: React.FC = () => {
                   Pricing Urgency Breakdown
                 </Typography>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={portfolioData?.urgency_breakdown?.map((item: any, index: number) => ({
-                    name: item.pricing_urgency,
-                    value: item.unit_count,
-                    color: COLORS[index % COLORS.length],
-                  })) || []}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
+                  <BarChart data={urgencyBreakdown.map((item: any, index: number) => ({
+                    name: item.urgency,
+                    value: item.count,
+                    fill: COLORS[index % COLORS.length]
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="rgba(255, 255, 255, 0.8)"
+                      fontSize={12}
+                      fontWeight={600}
+                    />
+                    <YAxis stroke="rgba(255, 255, 255, 0.8)" fontSize={12} />
                     <Tooltip />
                     <Bar dataKey="value" fill="#8884d8">
-                      {portfolioData?.urgency_breakdown?.map((entry: any, index: number) => (
+                      {urgencyBreakdown.map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Bar>
@@ -593,7 +632,7 @@ const DashboardPage: React.FC = () => {
           </Grid>
 
           {/* Property Performance */}
-          {portfolioData?.property_performance && (
+          {propertyPerformance && (
             <Grid item xs={12}>
               <Card>
                 <CardContent>
@@ -606,36 +645,36 @@ const DashboardPage: React.FC = () => {
                         <TableRow>
                           <TableCell>Property</TableCell>
                           <TableCell align="right">Total Units</TableCell>
-                          <TableCell align="right">Vacant Units</TableCell>
+                          <TableCell align="right">Occupied Units</TableCell>
                           <TableCell align="right">Avg Rent</TableCell>
-                          <TableCell align="right">Avg $/SqFt</TableCell>
-                          <TableCell align="right">Revenue Potential</TableCell>
+                          <TableCell align="right">Occupancy Rate</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {portfolioData.property_performance.slice(0, 8).map((property: any, index: number) => (
+                        {propertyPerformance.slice(0, 8).map((property: any, index: number) => (
                           <TableRow key={index}>
                             <TableCell>
                               <Typography variant="body2" noWrap>
                                 {property.property}
                               </Typography>
                             </TableCell>
-                            <TableCell align="right">{property.total_units}</TableCell>
+                            <TableCell align="right">{property.unit_count}</TableCell>
                             <TableCell align="right">
                               <Chip
                                 size="small"
-                                label={property.vacant_units}
-                                color={property.vacant_units > 0 ? 'warning' : 'success'}
+                                label={property.occupied_count}
+                                color="success"
                               />
                             </TableCell>
                             <TableCell align="right">
                               {formatCurrency(property.avg_rent)}
                             </TableCell>
                             <TableCell align="right">
-                              ${property.avg_rent_per_sqft?.toFixed(2)}
-                            </TableCell>
-                            <TableCell align="right">
-                              {formatCurrency(property.revenue_potential)}
+                              <Chip
+                                size="small"
+                                label={`${property.occupancy_rate}%`}
+                                color={property.occupancy_rate >= 90 ? 'success' : property.occupancy_rate >= 80 ? 'warning' : 'error'}
+                              />
                             </TableCell>
                           </TableRow>
                         ))}

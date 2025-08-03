@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AppBar,
   Box,
@@ -19,6 +19,8 @@ import {
   Menu,
   MenuItem,
   ListItemAvatar,
+  Tooltip,
+  Button,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -31,9 +33,15 @@ import {
   Logout,
   CompareArrows as CompareArrowsIcon,
   Assessment as AssessmentIcon,
+  Business as BusinessIcon,
+  FilterList as FilterListIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePropertySelection } from '@/contexts/PropertySelectionContext';
+import { useQuery } from '@tanstack/react-query';
+import PropertySelector from './PropertySelector';
+import apiService from '@/services/api';
 
 const drawerWidth = 280;
 
@@ -44,11 +52,30 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
+  const [propertySelectorOpen, setPropertySelectorOpen] = useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { selectedProperties, setAllProperties } = usePropertySelection();
+
+  // Fetch properties and populate the context
+  const { data: propertiesData, error: propertiesError, isLoading: propertiesLoading } = useQuery({
+    queryKey: ['properties'],
+    queryFn: () => apiService.getProperties(),
+  });
+
+  useEffect(() => {
+    console.log('🏢 Properties data received:', propertiesData);
+    console.log('🚨 Properties error:', propertiesError);
+    console.log('⏳ Properties loading:', propertiesLoading);
+    
+    if (propertiesData?.properties) {
+      console.log(`📊 Setting ${propertiesData.properties.length} properties in context:`, propertiesData.properties);
+      setAllProperties(propertiesData.properties);
+    }
+  }, [propertiesData, propertiesError, propertiesLoading, setAllProperties]);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -365,6 +392,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             AI Rent Optimization Command Center
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Tooltip title={`${selectedProperties.length} properties selected`} arrow>
+              <Button
+                startIcon={<FilterListIcon />}
+                onClick={() => setPropertySelectorOpen(true)}
+                sx={{
+                  color: '#01D1D1',
+                  borderColor: 'rgba(1, 209, 209, 0.3)',
+                  textTransform: 'none',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  px: 2,
+                  py: 0.5,
+                  minWidth: 'auto',
+                  '&:hover': {
+                    borderColor: '#01D1D1',
+                    backgroundColor: 'rgba(1, 209, 209, 0.1)',
+                  },
+                }}
+                variant="outlined"
+                size="small"
+              >
+                {selectedProperties.length}
+              </Button>
+            </Tooltip>
             <Chip
               size="small"
               label={user?.role?.toUpperCase() || "USER"}
@@ -520,6 +571,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {children}
         </Box>
       </Box>
+      
+      <PropertySelector 
+        open={propertySelectorOpen} 
+        onClose={() => setPropertySelectorOpen(false)} 
+      />
     </Box>
   );
 };

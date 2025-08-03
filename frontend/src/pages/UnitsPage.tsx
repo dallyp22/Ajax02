@@ -17,6 +17,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { apiService } from '@/services/api';
 import { Unit, UnitStatus, PricingUrgency, UnitGridRow } from '@/types/api';
+import { usePropertySelection } from '@/contexts/PropertySelectionContext';
 import OptimizationModal from '@/components/OptimizationModal';
 import BatchOptimizationDialog from '@/components/BatchOptimizationDialog';
 
@@ -28,23 +29,33 @@ const UnitsPage: React.FC = () => {
   const [needsPricingOnly, setNeedsPricingOnly] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
+  
+  // Get selected properties from context
+  const { selectedProperties } = usePropertySelection();
 
-  // Fetch units
+  // Fetch units with property filtering
   const {
     data: unitsData,
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey: ['units', page + 1, pageSize, statusFilter, needsPricingOnly],
+    queryKey: ['units', page + 1, pageSize, statusFilter, needsPricingOnly, selectedProperties],
     queryFn: () =>
       apiService.getUnits({
         page: page + 1,
         page_size: pageSize,
         status: statusFilter as UnitStatus,
+        selectedProperties: selectedProperties.length > 0 ? selectedProperties : undefined,
         needs_pricing_only: needsPricingOnly,
       }),
   });
+
+  // Debug logging
+  React.useEffect(() => {
+    console.log('🏠 Units Page - Selected properties:', selectedProperties);
+    console.log('📊 Units data:', unitsData);
+  }, [selectedProperties, unitsData]);
 
   // Transform units for DataGrid
   const rows: UnitGridRow[] =
@@ -198,9 +209,22 @@ const UnitsPage: React.FC = () => {
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Units
-        </Typography>
+        <Box>
+          <Typography variant="h4" component="h1">
+            Units
+          </Typography>
+          {/* Debug chip showing selected properties */}
+          <Chip
+            label={`${selectedProperties.length} properties selected`}
+            size="small"
+            sx={{
+              mt: 1,
+              backgroundColor: 'rgba(1, 209, 209, 0.1)',
+              color: '#01D1D1',
+              border: '1px solid rgba(1, 209, 209, 0.3)',
+            }}
+          />
+        </Box>
         <Stack direction="row" spacing={2}>
           <Button
             variant="contained"

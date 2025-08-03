@@ -3,18 +3,31 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import {
   UnitsListResponse,
-  UnitsQueryParams,
   ComparablesResponse,
-  OptimizeRequest,
   OptimizeResponse,
-  BatchOptimizeRequest,
-  BatchOptimizeResponse,
-  HealthResponse,
+  AnalyticsData,
+  PricingOpportunities,
+  MarketPositionData,
+  TableSettings,
+  ConnectionTestResponse,
   PropertyListResponse,
   PropertyVsCompetitionAnalysis,
   PropertyUnitAnalysis,
   PropertyMarketTrends,
-  Unit,
+  SvSNBenchmarkResponse,
+  SvSNVacancyResponse,
+  SvSNRentSpreadResponse,
+  SvSNClusteringResponse,
+  SvSNRecommendationResponse,
+  ArchiveBenchmarkResponse,
+  ArchiveVacancyResponse,
+  ArchiveRentSpreadResponse,
+  ArchiveClusteringResponse,
+  ArchiveRecommendationResponse,
+  OptimizationStrategy,
+  UnitStatus,
+  UnitType,
+  PricingUrgency,
 } from '@/types/api';
 
 // Mock data for demo mode
@@ -135,6 +148,21 @@ const mockUnits = [
 class ApiService {
   private client: AxiosInstance;
   private isDemoMode: boolean;
+  
+  private buildQueryParams(params: Record<string, any> = {}): string {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        if (Array.isArray(value)) {
+          value.forEach(item => searchParams.append(key, item));
+        } else {
+          searchParams.append(key, value);
+        }
+      }
+    });
+    const queryString = searchParams.toString();
+    return queryString ? `?${queryString}` : '';
+  }
 
   constructor() {
     const baseURL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -176,61 +204,70 @@ class ApiService {
   }
 
   // Units endpoints
-  async getUnits(params: UnitsQueryParams = {}): Promise<UnitsListResponse> {
-    if (this.isDemoMode) {
-      console.log('📊 Demo Mode: Using mock units data');
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
-      
-      // Create more realistic mock data
-      const allMockUnits = [
-        { unit_id: '101', property: 'Atlas - 2929 California Plaza', bed: 1, bath: 1, unit_type: 'ONE_BR', status: 'VACANT', advertised_rent: 1200, market_rent: 1250, sqft: 650, rent_per_sqft: 1.85, pricing_urgency: 'HIGH', annual_revenue_potential: 15000, needs_pricing: true, size_category: 'SMALL', has_complete_data: true },
-        { unit_id: '102', property: 'Atlas - 2929 California Plaza', bed: 2, bath: 2, unit_type: 'TWO_BR', status: 'OCCUPIED', advertised_rent: 1800, market_rent: 1850, sqft: 900, rent_per_sqft: 2.00, pricing_urgency: 'MEDIUM', annual_revenue_potential: 22200, needs_pricing: false, size_category: 'MEDIUM', has_complete_data: true },
-        { unit_id: '201', property: 'The Wire - 100 S 19th Street', bed: 1, bath: 1, unit_type: 'ONE_BR', status: 'NOTICE', advertised_rent: 1150, market_rent: 1300, sqft: 600, rent_per_sqft: 1.92, pricing_urgency: 'IMMEDIATE', annual_revenue_potential: 15600, needs_pricing: true, size_category: 'SMALL', has_complete_data: true },
-        { unit_id: '202', property: 'The Wire - 100 S 19th Street', bed: 2, bath: 2, unit_type: 'TWO_BR', status: 'VACANT', advertised_rent: 1650, market_rent: 1700, sqft: 850, rent_per_sqft: 2.00, pricing_urgency: 'HIGH', annual_revenue_potential: 20400, needs_pricing: true, size_category: 'MEDIUM', has_complete_data: true },
-        { unit_id: '301', property: 'Demo Complex', bed: 0, bath: 1, unit_type: 'STUDIO', status: 'OCCUPIED', advertised_rent: 900, market_rent: 950, sqft: 450, rent_per_sqft: 2.11, pricing_urgency: 'LOW', annual_revenue_potential: 11400, needs_pricing: false, size_category: 'MICRO', has_complete_data: true },
-        { unit_id: '302', property: 'Demo Complex', bed: 3, bath: 2, unit_type: 'THREE_BR', status: 'VACANT', advertised_rent: 2200, market_rent: 2350, sqft: 1200, rent_per_sqft: 1.96, pricing_urgency: 'IMMEDIATE', annual_revenue_potential: 28200, needs_pricing: true, size_category: 'LARGE', has_complete_data: true },
-      ];
-      
-      const pageSize = params.page_size || 25;
-      const page = (params.page || 1) - 1;
-      const startIndex = page * pageSize;
-      const endIndex = startIndex + pageSize;
-      
-      return {
-        units: allMockUnits.slice(startIndex, endIndex),
-        total_count: allMockUnits.length,
-        page: params.page || 1,
-        page_size: pageSize,
-        total_pages: Math.ceil(allMockUnits.length / pageSize),
-      };
-    }
-    
+  async getUnits(params: {
+    page?: number;
+    page_size?: number;
+    status?: UnitStatus;
+    property?: string;
+    selectedProperties?: string[];
+    needs_pricing_only?: boolean;
+  } = {}): Promise<UnitsListResponse> {
     try {
-      const response: AxiosResponse<UnitsListResponse> = await this.client.get('/units', {
-        params,
-      });
+      // Build query parameters
+      const queryParams: any = {
+        page: params.page || 1,
+        page_size: params.page_size || 50,
+        needs_pricing_only: params.needs_pricing_only || false,
+      };
+
+      if (params.status) {
+        queryParams.status = params.status;
+      }
+
+      if (params.property) {
+        queryParams.property = params.property;
+      }
+
+      // Add multiple properties filter if provided
+      if (params.selectedProperties && params.selectedProperties.length > 0) {
+        // Use the buildQueryParams helper to handle arrays properly
+        const queryString = this.buildQueryParams({
+          ...queryParams,
+          properties: params.selectedProperties
+        });
+        console.log('🏢 API Request: GET /units with properties filter:', params.selectedProperties);
+        const response = await this.client.get(`/units?${queryString}`);
+        console.log('📊 API Response: 200 /units');
+        return response.data;
+      }
+
+      console.log('🏢 API Request: GET /units');
+      const response = await this.client.get('/units', { params: queryParams });
+      console.log('📊 API Response: 200 /units');
       return response.data;
     } catch (error) {
-      console.warn('🔄 API unavailable, falling back to demo data:', error);
-      // Fallback to mock data on error
-      const allMockUnits = [
-        { unit_id: '101', property: 'Atlas - 2929 California Plaza', unit_type: '1BR', status: 'VACANT', advertised_rent: 1200, market_rent: 1250, sqft: 650, rent_per_sqft: 1.85, pricing_urgency: 'HIGH', annual_revenue_potential: 15000, needs_pricing: true },
-        { unit_id: '102', property: 'Atlas - 2929 California Plaza', unit_type: '2BR', status: 'OCCUPIED', advertised_rent: 1800, market_rent: 1850, sqft: 900, rent_per_sqft: 2.00, pricing_urgency: 'MEDIUM', annual_revenue_potential: 22200, needs_pricing: false },
-        { unit_id: '201', property: 'The Wire - 100 S 19th Street', unit_type: '1BR', status: 'NOTICE', advertised_rent: 1150, market_rent: 1300, sqft: 600, rent_per_sqft: 1.92, pricing_urgency: 'IMMEDIATE', annual_revenue_potential: 15600, needs_pricing: true },
-      ];
-      
-      const pageSize = params.page_size || 25;
-      const page = (params.page || 1) - 1;
-      const startIndex = page * pageSize;
-      const endIndex = startIndex + pageSize;
-      
-      return {
-        units: allMockUnits.slice(startIndex, endIndex),
-        total_count: allMockUnits.length,
-        page: params.page || 1,
-        page_size: pageSize,
-        total_pages: Math.ceil(allMockUnits.length / pageSize),
-      };
+      console.error('API Response Error:', error);
+      if (import.meta.env.VITE_DEMO_MODE === 'true') {
+        console.warn('🔄 API unavailable, falling back to demo data:', error);
+        // Create mock units data for demo mode
+        const mockUnits = [
+          { unit_id: '101', property: 'Demo Property A', bed: 1, bath: 1, unit_type: UnitType.ONE_BR, status: UnitStatus.VACANT, advertised_rent: 1200, market_rent: 1250, sqft: 650, rent_per_sqft: 1.85, pricing_urgency: PricingUrgency.HIGH, annual_revenue_potential: 15000, needs_pricing: true, size_category: 'SMALL', has_complete_data: true, days_to_lease_end: null, move_out_date: null, lease_end_date: null, rent_premium_pct: -4.0 },
+          { unit_id: '102', property: 'Demo Property A', bed: 2, bath: 2, unit_type: UnitType.TWO_BR, status: UnitStatus.OCCUPIED, advertised_rent: 1800, market_rent: 1850, sqft: 900, rent_per_sqft: 2.00, pricing_urgency: PricingUrgency.MEDIUM, annual_revenue_potential: 22200, needs_pricing: false, size_category: 'MEDIUM', has_complete_data: true, days_to_lease_end: 120, move_out_date: null, lease_end_date: '2025-06-01', rent_premium_pct: -2.7 },
+          { unit_id: '201', property: 'Demo Property B', bed: 1, bath: 1, unit_type: UnitType.ONE_BR, status: UnitStatus.NOTICE, advertised_rent: 1150, market_rent: 1300, sqft: 600, rent_per_sqft: 1.92, pricing_urgency: PricingUrgency.IMMEDIATE, annual_revenue_potential: 15600, needs_pricing: true, size_category: 'SMALL', has_complete_data: true, days_to_lease_end: 30, move_out_date: '2025-03-15', lease_end_date: '2025-03-15', rent_premium_pct: -11.5 },
+        ];
+        
+        return {
+          units: mockUnits.slice(
+            ((params.page || 1) - 1) * (params.page_size || 50),
+            (params.page || 1) * (params.page_size || 50)
+          ),
+          total_count: mockUnits.length,
+          page: params.page || 1,
+          page_size: params.page_size || 50,
+          has_next: (params.page || 1) * (params.page_size || 50) < mockUnits.length,
+        };
+      }
+      throw error;
     }
   }
 
@@ -347,6 +384,8 @@ class ApiService {
 
   // Meta endpoints
   async getProperties(): Promise<PropertyListResponse> {
+    console.log('🏢 getProperties called, isDemoMode:', this.isDemoMode);
+    
     if (this.isDemoMode) {
       console.log('📊 Demo Mode: Using mock properties');
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -363,9 +402,12 @@ class ApiService {
     }
 
     try {
+      console.log('🌐 Making API call to /properties');
       const response = await this.client.get('/properties');
+      console.log('✅ Properties API response:', response.data);
       return response.data;
     } catch (error) {
+      console.error('❌ Properties API error:', error);
       console.warn('🔄 API unavailable, falling back to demo data:', error);
       return {
         properties: [
@@ -698,7 +740,7 @@ class ApiService {
   }
 
   // Analytics endpoints
-  async getPortfolioAnalytics(): Promise<any> {
+  async getPortfolioAnalytics(selectedProperties?: string[]): Promise<any> {
     if (this.isDemoMode) {
       console.log('📊 Demo Mode: Using mock portfolio analytics');
       await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
@@ -706,7 +748,10 @@ class ApiService {
     }
     
     try {
-      const response = await this.client.get('/analytics/portfolio');
+      const params = this.buildQueryParams({ 
+        properties: selectedProperties 
+      });
+      const response = await this.client.get(`/analytics/portfolio${params}`);
       return response.data;
     } catch (error) {
       console.warn('🔄 API unavailable, falling back to demo data:', error);
@@ -714,7 +759,7 @@ class ApiService {
     }
   }
 
-  async getMarketPosition(): Promise<any> {
+  async getMarketPosition(selectedProperties?: string[]): Promise<any> {
     if (this.isDemoMode) {
       console.log('📊 Demo Mode: Using mock market position data');
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -729,7 +774,10 @@ class ApiService {
     }
     
     try {
-      const response = await this.client.get('/analytics/market-position');
+      const params = this.buildQueryParams({ 
+        properties: selectedProperties 
+      });
+      const response = await this.client.get(`/analytics/market-position${params}`);
       return response.data;
     } catch (error) {
       console.warn('🔄 API unavailable, falling back to demo data:', error);
@@ -744,7 +792,7 @@ class ApiService {
     }
   }
 
-  async getPricingOpportunities(): Promise<any> {
+  async getPricingOpportunities(selectedProperties?: string[]): Promise<any> {
     if (this.isDemoMode) {
       console.log('📊 Demo Mode: Using mock pricing opportunities');
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -766,7 +814,10 @@ class ApiService {
     }
     
     try {
-      const response = await this.client.get('/analytics/pricing-opportunities');
+      const params = this.buildQueryParams({ 
+        properties: selectedProperties 
+      });
+      const response = await this.client.get(`/analytics/pricing-opportunities${params}`);
       return response.data;
     } catch (error) {
       console.warn('🔄 API unavailable, falling back to demo data:', error);

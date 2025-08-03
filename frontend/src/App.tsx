@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { PropertySelectionProvider } from './contexts/PropertySelectionContext';
 import Layout from './components/Layout';
 import LoginPage from './components/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -56,9 +57,11 @@ const AppContent: React.FC = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <PropertySelectionProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </PropertySelectionProvider>
   );
 }
 
