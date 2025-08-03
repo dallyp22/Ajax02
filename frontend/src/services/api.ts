@@ -5,11 +5,6 @@ import {
   UnitsListResponse,
   ComparablesResponse,
   OptimizeResponse,
-  AnalyticsData,
-  PricingOpportunities,
-  MarketPositionData,
-  TableSettings,
-  ConnectionTestResponse,
   PropertyListResponse,
   PropertyVsCompetitionAnalysis,
   PropertyUnitAnalysis,
@@ -24,10 +19,10 @@ import {
   ArchiveRentSpreadResponse,
   ArchiveClusteringResponse,
   ArchiveRecommendationResponse,
-  OptimizationStrategy,
   UnitStatus,
   UnitType,
   PricingUrgency,
+  Unit,
 } from '@/types/api';
 
 // Mock data for demo mode
