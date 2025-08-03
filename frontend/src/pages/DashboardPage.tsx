@@ -747,16 +747,22 @@ const DashboardPage: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     Rent Comparison by Bedrooms
                   </Typography>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={prepareRentComparisonData()}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="bedrooms" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="ourRent" fill="#2A9D8F" name="Our Rent" />
-                      <Bar dataKey="marketRent" fill="#F4A261" name="Market Rent" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {competitionLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={prepareRentComparisonData()}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="bedrooms" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="ourRent" fill="#2A9D8F" name="Our Rent" />
+                        <Bar dataKey="marketRent" fill="#F4A261" name="Market Rent" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -768,16 +774,22 @@ const DashboardPage: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     Market Positioning ($/SqFt)
                   </Typography>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={prepareMarketPositioningData()}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="beds" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="ourRentPerSqft" fill="#2A9D8F" name="Our $/SqFt" />
-                      <Bar dataKey="marketRentPerSqft" fill="#F4A261" name="Market $/SqFt" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {competitionLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={prepareMarketPositioningData()}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="beds" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="ourRentPerSqft" fill="#2A9D8F" name="Our $/SqFt" />
+                        <Bar dataKey="marketRentPerSqft" fill="#F4A261" name="Market $/SqFt" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -789,36 +801,42 @@ const DashboardPage: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     Top Competitors
                   </Typography>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Competitor</TableCell>
-                          <TableCell align="right">Avg Rent</TableCell>
-                          <TableCell align="right">Avg $/SqFt</TableCell>
-                          <TableCell align="right">Similarity Score</TableCell>
-                          <TableCell align="right">Available Units</TableCell>
-                          <TableCell align="right">Comparable Units</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {prepareCompetitorData().map((comp, index) => (
-                          <TableRow key={index}>
-                            <TableCell>
-                              <Typography variant="body2" noWrap>
-                                {comp.name}
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">{formatCurrency(comp.avgRent)}</TableCell>
-                            <TableCell align="right">${comp.rentPerSqft?.toFixed(2)}</TableCell>
-                            <TableCell align="right">{comp.similarityScore?.toFixed(1)}%</TableCell>
-                            <TableCell align="right">{comp.availableUnits}</TableCell>
-                            <TableCell align="right">{comp.comparableUnits}</TableCell>
+                  {competitionLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Competitor</TableCell>
+                            <TableCell align="right">Avg Rent</TableCell>
+                            <TableCell align="right">Avg $/SqFt</TableCell>
+                            <TableCell align="right">Similarity Score</TableCell>
+                            <TableCell align="right">Available Units</TableCell>
+                            <TableCell align="right">Comparable Units</TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                        </TableHead>
+                        <TableBody>
+                          {prepareCompetitorData().map((comp, index) => (
+                            <TableRow key={index}>
+                              <TableCell>
+                                <Typography variant="body2" noWrap>
+                                  {comp.name}
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right">{formatCurrency(comp.avgRent)}</TableCell>
+                              <TableCell align="right">${comp.rentPerSqft?.toFixed(2)}</TableCell>
+                              <TableCell align="right">{comp.similarityScore?.toFixed(1)}%</TableCell>
+                              <TableCell align="right">{comp.availableUnits}</TableCell>
+                              <TableCell align="right">{comp.comparableUnits}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -843,29 +861,35 @@ const DashboardPage: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     Unit Status Distribution
                   </Typography>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: 'Vacant', value: propertyUnitsData?.units?.filter(u => u.status === 'VACANT').length || 0 },
-                          { name: 'Occupied', value: propertyUnitsData?.units?.filter(u => u.status === 'OCCUPIED').length || 0 },
-                          { name: 'Notice', value: propertyUnitsData?.units?.filter(u => u.status === 'NOTICE').length || 0 },
-                        ]}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {[0, 1, 2].map((index: number) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {unitsLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Vacant', value: propertyUnitsData?.units?.filter(u => u.status === 'VACANT').length || 0 },
+                            { name: 'Occupied', value: propertyUnitsData?.units?.filter(u => u.status === 'OCCUPIED').length || 0 },
+                            { name: 'Notice', value: propertyUnitsData?.units?.filter(u => u.status === 'NOTICE').length || 0 },
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {[0, 1, 2].map((index: number) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -877,30 +901,36 @@ const DashboardPage: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     Pricing Urgency Breakdown
                   </Typography>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={[
-                      { name: 'IMMEDIATE', value: propertyUnitsData?.units?.filter(u => u.pricing_urgency === 'IMMEDIATE').length || 0 },
-                      { name: 'HIGH', value: propertyUnitsData?.units?.filter(u => u.pricing_urgency === 'HIGH').length || 0 },
-                      { name: 'MEDIUM', value: propertyUnitsData?.units?.filter(u => u.pricing_urgency === 'MEDIUM').length || 0 },
-                      { name: 'LOW', value: propertyUnitsData?.units?.filter(u => u.pricing_urgency === 'LOW').length || 0 },
-                    ]}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#8884d8">
-                        {[0, 1, 2, 3].map((index: number) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {unitsLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={[
+                        { name: 'IMMEDIATE', value: propertyUnitsData?.units?.filter(u => u.pricing_urgency === 'IMMEDIATE').length || 0 },
+                        { name: 'HIGH', value: propertyUnitsData?.units?.filter(u => u.pricing_urgency === 'HIGH').length || 0 },
+                        { name: 'MEDIUM', value: propertyUnitsData?.units?.filter(u => u.pricing_urgency === 'MEDIUM').length || 0 },
+                        { name: 'LOW', value: propertyUnitsData?.units?.filter(u => u.pricing_urgency === 'LOW').length || 0 },
+                      ]}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#8884d8">
+                          {[0, 1, 2, 3].map((index: number) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
 
             {/* Market Position Analysis */}
-            {marketSummary.length > 0 && (
+            {!unitsLoading && marketSummary.length > 0 && (
               <Grid item xs={12} md={6}>
                 <Card>
                   <CardContent>
@@ -949,38 +979,44 @@ const DashboardPage: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     Revenue Optimization Summary
                   </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                      <Box textAlign="center" p={2}>
-                        <Typography variant="h3" color="success.main">
-                          {propertyUnitsData?.summary?.units_50plus_below_market || 0}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Units with $50+ opportunity
-                        </Typography>
-                      </Box>
+                  {unitsLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Box textAlign="center" p={2}>
+                          <Typography variant="h3" color="success.main">
+                            {propertyUnitsData?.summary?.units_50plus_below_market || 0}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            Units with $50+ opportunity
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Box textAlign="center" p={2}>
+                          <Typography variant="h3" color="warning.main">
+                            {propertyUnitsData?.summary?.units_100plus_below_market || 0}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            Units with $100+ opportunity
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Box textAlign="center" p={2} bgcolor="grey.50" borderRadius={1}>
+                          <Typography variant="h6" color="primary">
+                            {formatCurrency(propertyUnitsData?.summary?.total_monthly_opportunity || 0)}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            Total Monthly Revenue Opportunity
+                          </Typography>
+                        </Box>
+                      </Grid>
                     </Grid>
-                    <Grid item xs={6}>
-                      <Box textAlign="center" p={2}>
-                        <Typography variant="h3" color="warning.main">
-                          {propertyUnitsData?.summary?.units_100plus_below_market || 0}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Units with $100+ opportunity
-                        </Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Box textAlign="center" p={2} bgcolor="grey.50" borderRadius={1}>
-                        <Typography variant="h6" color="primary">
-                          {formatCurrency(propertyUnitsData?.summary?.total_monthly_opportunity || 0)}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Total Monthly Revenue Opportunity
-                        </Typography>
-                      </Box>
-                    </Grid>
-                  </Grid>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -1002,68 +1038,76 @@ const DashboardPage: React.FC = () => {
                       {showUnitDetails ? 'Hide Details' : 'Show Details'}
                     </Button>
                   </Box>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Unit ID</TableCell>
-                          <TableCell>Type</TableCell>
-                          <TableCell align="right">Current Rent</TableCell>
-                          <TableCell align="right">Market Rent</TableCell>
-                          <TableCell align="right">Gap</TableCell>
-                          <TableCell align="right">Opportunity</TableCell>
-                          <TableCell>Position</TableCell>
-                          <TableCell>Status</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {propertyUnitsData?.units?.slice(0, showUnitDetails ? 50 : 10).map((unit: any) => (
-                          <TableRow key={unit.unit_id}>
-                            <TableCell>{unit.unit_id}</TableCell>
-                            <TableCell>{unit.unit_type}</TableCell>
-                            <TableCell align="right">{formatCurrency(unit.advertised_rent)}</TableCell>
-                            <TableCell align="right">{formatCurrency(unit.avg_comp_rent)}</TableCell>
-                            <TableCell align="right">
-                              <Chip
-                                size="small"
-                                label={`${unit.rent_premium_pct?.toFixed(1) || 0}%`}
-                                color={unit.rent_premium_pct > 0 ? 'success' : 'warning'}
-                              />
-                            </TableCell>
-                            <TableCell align="right">
-                              {formatCurrency(unit.annual_opportunity || 0)}
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                size="small"
-                                label={unit.market_position}
-                                color={
-                                  unit.market_position === 'ABOVE_MARKET' ? 'success' :
-                                  unit.market_position === 'BELOW_MARKET' ? 'warning' : 'default'
-                                }
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                size="small"
-                                label={unit.status}
-                                color={
-                                  unit.status === 'VACANT' ? 'error' :
-                                  unit.status === 'NOTICE' ? 'warning' : 'success'
-                                }
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  {propertyUnitsData?.units && propertyUnitsData.units.length > 10 && !showUnitDetails && (
-                    <Box textAlign="center" mt={2}>
-                      <Typography variant="body2" color="textSecondary">
-                        Showing 10 of {propertyUnitsData.units.length} units. Click "Show Details" to see all.
-                      </Typography>
+                  {unitsLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={400}>
+                      <CircularProgress />
                     </Box>
+                  ) : (
+                    <>
+                      <TableContainer component={Paper} variant="outlined">
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Unit ID</TableCell>
+                              <TableCell>Type</TableCell>
+                              <TableCell align="right">Current Rent</TableCell>
+                              <TableCell align="right">Market Rent</TableCell>
+                              <TableCell align="right">Gap</TableCell>
+                              <TableCell align="right">Opportunity</TableCell>
+                              <TableCell>Position</TableCell>
+                              <TableCell>Status</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {propertyUnitsData?.units?.slice(0, showUnitDetails ? 50 : 10).map((unit: any) => (
+                              <TableRow key={unit.unit_id}>
+                                <TableCell>{unit.unit_id}</TableCell>
+                                <TableCell>{unit.unit_type}</TableCell>
+                                <TableCell align="right">{formatCurrency(unit.advertised_rent)}</TableCell>
+                                <TableCell align="right">{formatCurrency(unit.avg_comp_rent)}</TableCell>
+                                <TableCell align="right">
+                                  <Chip
+                                    size="small"
+                                    label={`${unit.rent_premium_pct?.toFixed(1) || 0}%`}
+                                    color={unit.rent_premium_pct > 0 ? 'success' : 'warning'}
+                                  />
+                                </TableCell>
+                                <TableCell align="right">
+                                  {formatCurrency(unit.annual_opportunity || 0)}
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    size="small"
+                                    label={unit.market_position}
+                                    color={
+                                      unit.market_position === 'ABOVE_MARKET' ? 'success' :
+                                      unit.market_position === 'BELOW_MARKET' ? 'warning' : 'default'
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    size="small"
+                                    label={unit.status}
+                                    color={
+                                      unit.status === 'VACANT' ? 'error' :
+                                      unit.status === 'NOTICE' ? 'warning' : 'success'
+                                    }
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                      {propertyUnitsData?.units && propertyUnitsData.units.length > 10 && !showUnitDetails && (
+                        <Box textAlign="center" mt={2}>
+                          <Typography variant="body2" color="textSecondary">
+                            Showing 10 of {propertyUnitsData.units.length} units. Click "Show Details" to see all.
+                          </Typography>
+                        </Box>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -1138,15 +1182,21 @@ const DashboardPage: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     Rent Distribution Analysis
                   </Typography>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={propertyTrendsData?.rent_distribution || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="rent_range" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="unit_count" fill="#2A9D8F" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  {trendsLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={propertyTrendsData?.rent_distribution || []}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="rent_range" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="unit_count" fill="#2A9D8F" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -1158,75 +1208,87 @@ const DashboardPage: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     Market Positioning by Unit Type
                   </Typography>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <ScatterChart data={prepareMarketPositioningData()}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="ourRent" name="Our Rent" />
-                      <YAxis dataKey="marketRent" name="Market Rent" />
-                      <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-                      <Scatter name="Units" data={prepareMarketPositioningData()} fill="#01D1D1" />
-                    </ScatterChart>
-                  </ResponsiveContainer>
+                  {trendsLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <ScatterChart data={prepareMarketPositioningData()}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="ourRent" name="Our Rent" />
+                        <YAxis dataKey="marketRent" name="Market Rent" />
+                        <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                        <Scatter name="Units" data={prepareMarketPositioningData()} fill="#01D1D1" />
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
 
-            {/* Competitor Landscape */}
+            {/* Competitive Landscape */}
             <Grid item xs={12}>
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
                     Competitive Landscape Analysis
                   </Typography>
-                  <TableContainer component={Paper} variant="outlined">
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Competitor Property</TableCell>
-                          <TableCell align="right">Our Units Compared</TableCell>
-                          <TableCell align="right">Their Comparable Units</TableCell>
-                          <TableCell align="right">Their Avg Rent</TableCell>
-                          <TableCell align="right">Their Avg $/SqFt</TableCell>
-                          <TableCell align="right">Similarity Score</TableCell>
-                          <TableCell align="right">Their Available Units</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {propertyTrendsData?.top_competitors?.map((comp: any, index: number) => (
-                          <TableRow key={index}>
-                            <TableCell>
-                              <MuiTooltip title={comp.competitor_property} arrow>
-                                <Typography variant="body2" noWrap>
-                                  {comp.competitor_property.length > 30 
-                                    ? comp.competitor_property.substring(0, 30) + '...' 
-                                    : comp.competitor_property
-                                  }
-                                </Typography>
-                              </MuiTooltip>
-                            </TableCell>
-                            <TableCell align="right">{comp.our_units_compared}</TableCell>
-                            <TableCell align="right">{comp.their_comparable_units}</TableCell>
-                            <TableCell align="right">{formatCurrency(comp.their_avg_rent)}</TableCell>
-                            <TableCell align="right">${comp.their_avg_rent_per_sqft?.toFixed(2)}</TableCell>
-                            <TableCell align="right">
-                              <Chip
-                                size="small"
-                                label={`${(comp.avg_similarity_score * 100)?.toFixed(1)}%`}
-                                color={comp.avg_similarity_score > 0.8 ? 'success' : 'default'}
-                              />
-                            </TableCell>
-                            <TableCell align="right">
-                              <Chip
-                                size="small"
-                                label={comp.their_available_units}
-                                color={comp.their_available_units > 0 ? 'warning' : 'success'}
-                              />
-                            </TableCell>
+                  {trendsLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Competitor Property</TableCell>
+                            <TableCell align="right">Our Units Compared</TableCell>
+                            <TableCell align="right">Their Comparable Units</TableCell>
+                            <TableCell align="right">Their Avg Rent</TableCell>
+                            <TableCell align="right">Their Avg $/SqFt</TableCell>
+                            <TableCell align="right">Similarity Score</TableCell>
+                            <TableCell align="right">Their Available Units</TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+                        </TableHead>
+                        <TableBody>
+                          {propertyTrendsData?.top_competitors?.map((comp: any, index: number) => (
+                            <TableRow key={index}>
+                              <TableCell>
+                                <MuiTooltip title={comp.competitor_property} arrow>
+                                  <Typography variant="body2" noWrap>
+                                    {comp.competitor_property.length > 30 
+                                      ? comp.competitor_property.substring(0, 30) + '...' 
+                                      : comp.competitor_property
+                                    }
+                                  </Typography>
+                                </MuiTooltip>
+                              </TableCell>
+                              <TableCell align="right">{comp.our_units_compared}</TableCell>
+                              <TableCell align="right">{comp.their_comparable_units}</TableCell>
+                              <TableCell align="right">{formatCurrency(comp.their_avg_rent)}</TableCell>
+                              <TableCell align="right">${comp.their_avg_rent_per_sqft?.toFixed(2)}</TableCell>
+                              <TableCell align="right">
+                                <Chip
+                                  size="small"
+                                  label={`${(comp.avg_similarity_score * 100)?.toFixed(1)}%`}
+                                  color={comp.avg_similarity_score > 0.8 ? 'success' : 'default'}
+                                />
+                              </TableCell>
+                              <TableCell align="right">
+                                <Chip
+                                  size="small"
+                                  label={comp.their_available_units}
+                                  color={comp.their_available_units > 0 ? 'warning' : 'success'}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -1238,38 +1300,44 @@ const DashboardPage: React.FC = () => {
                   <Typography variant="h6" gutterBottom>
                     Market Intelligence Summary
                   </Typography>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} md={4}>
-                      <Box textAlign="center" p={2}>
-                        <Typography variant="h4" color="primary">
-                          {propertyTrendsData?.top_competitors?.length || 0}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Active Competitors
-                        </Typography>
-                      </Box>
+                  {trendsLoading ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height={200}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={4}>
+                        <Box textAlign="center" p={2}>
+                          <Typography variant="h4" color="primary">
+                            {propertyTrendsData?.top_competitors?.length || 0}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            Active Competitors
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Box textAlign="center" p={2}>
+                          <Typography variant="h4" color="success.main">
+                            {propertyTrendsData?.market_positioning?.reduce((sum: number, item: any) => sum + item.total_competitor_units, 0) || 0}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            Total Competitor Units
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Box textAlign="center" p={2}>
+                          <Typography variant="h4" color="warning.main">
+                            {propertyTrendsData?.top_competitors?.reduce((sum: number, comp: any) => sum + comp.their_available_units, 0) || 0}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            Competitor Availability
+                          </Typography>
+                        </Box>
+                      </Grid>
                     </Grid>
-                    <Grid item xs={12} md={4}>
-                      <Box textAlign="center" p={2}>
-                        <Typography variant="h4" color="success.main">
-                          {propertyTrendsData?.market_positioning?.reduce((sum: number, item: any) => sum + item.total_competitor_units, 0) || 0}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Total Competitor Units
-                        </Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <Box textAlign="center" p={2}>
-                        <Typography variant="h4" color="warning.main">
-                          {propertyTrendsData?.top_competitors?.reduce((sum: number, comp: any) => sum + comp.their_available_units, 0) || 0}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Competitor Availability
-                        </Typography>
-                      </Box>
-                    </Grid>
-                  </Grid>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
