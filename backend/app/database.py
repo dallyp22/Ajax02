@@ -977,7 +977,82 @@ class BigQueryService:
             
         except Exception as e:
             logger.error(f"Error fetching property unit analysis for {property_name}: {e}")
-            raise
+            # Provide fallback data when Competition table is inaccessible
+            logger.warning(f"Using fallback data for property unit analysis: {property_name}")
+            
+            # Get basic unit data without competition comparison
+            try:
+                basic_query = f"""
+                SELECT
+                  unit_id,
+                  unit_type,
+                  bed,
+                  bath,
+                  sqft,
+                  status,
+                  advertised_rent,
+                  rent_per_sqft,
+                  needs_pricing,
+                  pricing_urgency,
+                  annual_revenue_potential,
+                  move_out_date,
+                  lease_end_date,
+                  days_to_lease_end
+                FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+                WHERE property = '{property_name}'
+                ORDER BY unit_id
+                """
+                
+                basic_result = self.client.query(basic_query).to_dataframe()
+                units_data = []
+                
+                for _, row in basic_result.iterrows():
+                    unit = row.to_dict()
+                    # Add fallback competition fields
+                    unit['comparable_count'] = 0
+                    unit['avg_comp_rent'] = None
+                    unit['min_comp_rent'] = None
+                    unit['max_comp_rent'] = None
+                    unit['avg_similarity_score'] = 0.0
+                    unit['available_comps'] = 0
+                    unit['rent_premium_pct'] = None
+                    unit['potential_rent_increase'] = 0
+                    unit['annual_opportunity'] = 0
+                    unit['market_position'] = 'NO_DATA'
+                    units_data.append(unit)
+                
+                # Calculate basic summary
+                total_units = len(units_data)
+                summary_data = {
+                    'total_units_analyzed': total_units,
+                    'units_50plus_below_market': 0,
+                    'units_100plus_below_market': 0,
+                    'total_monthly_opportunity': 0,
+                    'total_annual_opportunity': 0,
+                    'avg_rent_gap': 0
+                }
+                
+                return {
+                    'property_name': property_name,
+                    'units': units_data,
+                    'summary': summary_data
+                }
+                
+            except Exception as e2:
+                logger.error(f"Error fetching basic unit data for {property_name}: {e2}")
+                # Final fallback with empty data
+                return {
+                    'property_name': property_name,
+                    'units': [],
+                    'summary': {
+                        'total_units_analyzed': 0,
+                        'units_50plus_below_market': 0,
+                        'units_100plus_below_market': 0,
+                        'total_monthly_opportunity': 0,
+                        'total_annual_opportunity': 0,
+                        'avg_rent_gap': 0
+                    }
+                }
 
     async def get_property_market_trends(self, property_name: str) -> Dict:
         """Get market trend analysis for a specific property using real Competition data."""
@@ -1212,7 +1287,118 @@ class BigQueryService:
             
         except Exception as e:
             logger.error(f"Error fetching property market trends for {property_name}: {e}")
-            raise
+            # Provide fallback data when Competition table is inaccessible
+            logger.warning(f"Using fallback data for property market trends: {property_name}")
+            
+            # Get basic property data without competition comparison
+            try:
+                basic_query = f"""
+                SELECT
+                  unit_type,
+                  bed,
+                  COUNT(*) as our_unit_count,
+                  ROUND(AVG(advertised_rent), 0) as our_avg_rent,
+                  ROUND(AVG(rent_per_sqft), 2) as our_avg_rent_per_sqft
+                FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+                WHERE property = '{property_name}'
+                GROUP BY unit_type, bed
+                ORDER BY bed, unit_type
+                """
+                
+                basic_result = self.client.query(basic_query).to_dataframe()
+                positioning_data = []
+                
+                for _, row in basic_result.iterrows():
+                    pos_data = row.to_dict()
+                    # Add fallback market fields
+                    pos_data['market_avg_rent'] = 0
+                    pos_data['market_avg_rent_per_sqft'] = 0.0
+                    pos_data['competitor_property_count'] = 0
+                    pos_data['total_competitor_units'] = 0
+                    pos_data['rent_premium_pct'] = None
+                    pos_data['rent_per_sqft_premium_pct'] = None
+                    positioning_data.append(pos_data)
+                
+                # Get rent distribution data
+                distribution_query = f"""
+                WITH rent_ranges AS (
+                  SELECT
+                    CASE
+                      WHEN advertised_rent < 1000 THEN 'Under $1,000'
+                      WHEN advertised_rent < 1500 THEN '$1,000 - $1,499'
+                      WHEN advertised_rent < 2000 THEN '$1,500 - $1,999'
+                      WHEN advertised_rent < 2500 THEN '$2,000 - $2,499'
+                      WHEN advertised_rent < 3000 THEN '$2,500 - $2,999'
+                      ELSE '$3,000+'
+                    END as rent_range,
+                    unit_type,
+                    COUNT(*) as unit_count
+                  FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
+                  WHERE property = '{property_name}'
+                  GROUP BY 
+                    CASE
+                      WHEN advertised_rent < 1000 THEN 'Under $1,000'
+                      WHEN advertised_rent < 1500 THEN '$1,000 - $1,499'
+                      WHEN advertised_rent < 2000 THEN '$1,500 - $1,999'
+                      WHEN advertised_rent < 2500 THEN '$2,000 - $2,499'
+                      WHEN advertised_rent < 3000 THEN '$2,500 - $2,999'
+                      ELSE '$3,000+'
+                    END,
+                    unit_type
+                )
+                SELECT rent_range, unit_type, unit_count
+                FROM rent_ranges
+                ORDER BY 
+                  CASE rent_range
+                    WHEN 'Under $1,000' THEN 1
+                    WHEN '$1,000 - $1,499' THEN 2
+                    WHEN '$1,500 - $1,999' THEN 3
+                    WHEN '$2,000 - $2,499' THEN 4
+                    WHEN '$2,500 - $2,999' THEN 5
+                    ELSE 6
+                  END,
+                  unit_type
+                """
+                
+                distribution_result = self.client.query(distribution_query).to_dataframe()
+                distribution_data = distribution_result.to_dict(orient='records')
+                
+                return {
+                    'property_name': property_name,
+                    'market_positioning': positioning_data,
+                    'top_competitors': [
+                        {
+                            'competitor_property': 'Data Unavailable',
+                            'our_units_compared': 0,
+                            'their_comparable_units': 0,
+                            'their_avg_rent': 0,
+                            'their_avg_rent_per_sqft': 0.0,
+                            'avg_similarity_score': 0.0,
+                            'their_available_units': 0
+                        }
+                    ],
+                    'rent_distribution': distribution_data
+                }
+                
+            except Exception as e2:
+                logger.error(f"Error fetching basic market trends data for {property_name}: {e2}")
+                # Final fallback with empty data
+                return {
+                    'property_name': property_name,
+                    'market_positioning': [],
+                    'top_competitors': [
+                        {
+                            'competitor_property': 'Data Unavailable',
+                            'our_units_compared': 0,
+                            'their_comparable_units': 0,
+                            'their_avg_rent': 0,
+                            'their_avg_rent_per_sqft': 0.0,
+                            'avg_similarity_score': 0.0,
+                            'their_available_units': 0
+                        }
+                    ],
+                    'rent_distribution': []
+                }
 
     async def test_property_filter(self, property_name: str) -> Dict:
         """Test property filtering to debug issues."""
