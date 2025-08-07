@@ -10,9 +10,10 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Tooltip as MuiTooltip,
 } from '@mui/material';
 import { DataGrid, GridColDef, GridRowParams } from '@mui/x-data-grid';
-import { Tune as OptimizeIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { Tune as OptimizeIcon, Refresh as RefreshIcon, FilterList as FilterListIcon } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 
 import { apiService } from '@/services/api';
@@ -20,6 +21,7 @@ import { Unit, UnitStatus, PricingUrgency, UnitGridRow } from '@/types/api';
 import { usePropertySelection } from '@/contexts/PropertySelectionContext';
 import OptimizationModal from '@/components/OptimizationModal';
 import BatchOptimizationDialog from '@/components/BatchOptimizationDialog';
+import PropertySelector from '@/components/PropertySelector';
 
 const UnitsPage: React.FC = () => {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
@@ -29,6 +31,7 @@ const UnitsPage: React.FC = () => {
   const [needsPricingOnly, setNeedsPricingOnly] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
+  const [propertySelectorOpen, setPropertySelectorOpen] = useState(false);
   
   // Get selected properties from context
   const { selectedProperties } = usePropertySelection();
@@ -226,6 +229,29 @@ const UnitsPage: React.FC = () => {
           />
         </Box>
         <Stack direction="row" spacing={2}>
+          <MuiTooltip title={`${selectedProperties.length} properties selected`} arrow>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<FilterListIcon />}
+              onClick={() => setPropertySelectorOpen(true)}
+              sx={{
+                color: '#01D1D1',
+                borderColor: 'rgba(1, 209, 209, 0.3)',
+                textTransform: 'none',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                px: 2,
+                py: 0.75,
+                '&:hover': {
+                  borderColor: '#01D1D1',
+                  backgroundColor: 'rgba(1, 209, 209, 0.1)',
+                },
+              }}
+            >
+              Property Selector ({selectedProperties.length})
+            </Button>
+          </MuiTooltip>
           <Button
             variant="contained"
             startIcon={<OptimizeIcon />}
@@ -311,6 +337,9 @@ const UnitsPage: React.FC = () => {
           refetch();
         }}
       />
+
+      {/* Property Selector Modal */}
+      <PropertySelector open={propertySelectorOpen} onClose={() => setPropertySelectorOpen(false)} />
     </Box>
   );
 };

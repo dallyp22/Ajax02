@@ -162,6 +162,11 @@ const DashboardPage: React.FC = () => {
   const opportunities = opportunitiesData?.summary || {};
   const properties = propertiesData?.properties || [];
 
+  // Derive occupancy including NOTICE as occupied (safety net if backend not yet redeployed)
+  const derivedOccupancyRate = (portfolio.total_units && (portfolio.occupied_units !== undefined) && (portfolio.notice_units !== undefined))
+    ? ((portfolio.occupied_units + portfolio.notice_units) / portfolio.total_units) * 100
+    : (portfolio.occupancy_rate || 0);
+
   // Format functions
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -424,7 +429,7 @@ const DashboardPage: React.FC = () => {
                       OCCUPANCY RATE
                     </Typography>
                     <Typography variant="h3" sx={{ fontWeight: 700, color: '#2A9D8F', mt: 1 }}>
-                      {formatPercentage(portfolio.occupancy_rate || 0)}
+                      {formatPercentage(derivedOccupancyRate)}
                     </Typography>
                   </Box>
                   <CheckCircleIcon sx={{ fontSize: 48, color: '#2A9D8F', opacity: 0.8 }} />
