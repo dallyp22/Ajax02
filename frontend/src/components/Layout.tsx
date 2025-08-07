@@ -34,13 +34,11 @@ import {
   CompareArrows as CompareArrowsIcon,
   Assessment as AssessmentIcon,
   Business as BusinessIcon,
-  FilterList as FilterListIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePropertySelection } from '@/contexts/PropertySelectionContext';
 import { useQuery } from '@tanstack/react-query';
-import PropertySelector from './PropertySelector';
 import apiService from '@/services/api';
 
 const drawerWidth = 280;
@@ -52,13 +50,13 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
-  const [propertySelectorOpen, setPropertySelectorOpen] = useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
   const { selectedProperties, setAllProperties } = usePropertySelection();
+  const isAdmin = (user?.role || '').toLowerCase().includes('admin');
 
   // Fetch properties and populate the context
   const { data: propertiesData, error: propertiesError, isLoading: propertiesLoading } = useQuery({
@@ -98,8 +96,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard', description: 'Portfolio Overview' },
     { text: 'Units', icon: <Home />, path: '/units', description: 'Unit Management' },
     { text: 'Analytics', icon: <CompareArrowsIcon />, path: '/analytics', description: 'Competitive Intelligence' },
-    { text: 'Market Research', icon: <AssessmentIcon />, path: '/market-research', description: 'Market Analysis' },
-    { text: 'Settings', icon: <Settings />, path: '/settings', description: 'Configuration' },
+    // Removed Market Research and Settings from sidebar; moved to admin dropdown
   ];
 
   const BrandLogo = () => (
@@ -392,30 +389,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             AI Rent Optimization Command Center
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Tooltip title={`${selectedProperties.length} properties selected`} arrow>
-              <Button
-                startIcon={<FilterListIcon />}
-                onClick={() => setPropertySelectorOpen(true)}
-                sx={{
-                  color: '#01D1D1',
-                  borderColor: 'rgba(1, 209, 209, 0.3)',
-                  textTransform: 'none',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  px: 2,
-                  py: 0.5,
-                  minWidth: 'auto',
-                  '&:hover': {
-                    borderColor: '#01D1D1',
-                    backgroundColor: 'rgba(1, 209, 209, 0.1)',
-                  },
-                }}
-                variant="outlined"
-                size="small"
-              >
-                {selectedProperties.length}
-              </Button>
-            </Tooltip>
             <Chip
               size="small"
               label={user?.role?.toUpperCase() || "USER"}
@@ -495,6 +468,35 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </Box>
               </MenuItem>
               <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+              {isAdmin && (
+                <>
+                  <MenuItem
+                    onClick={() => { navigate('/market-research'); handleUserMenuClose(); }}
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.9)',
+                      '&:hover': { backgroundColor: 'rgba(1, 209, 209, 0.08)' }
+                    }}
+                  >
+                    <ListItemIcon sx={{ color: '#01D1D1' }}>
+                      <AssessmentIcon fontSize="small" />
+                    </ListItemIcon>
+                    <Typography variant="body2">Market Research</Typography>
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => { navigate('/settings'); handleUserMenuClose(); }}
+                    sx={{
+                      color: 'rgba(255, 255, 255, 0.9)',
+                      '&:hover': { backgroundColor: 'rgba(1, 209, 209, 0.08)' }
+                    }}
+                  >
+                    <ListItemIcon sx={{ color: '#01D1D1' }}>
+                      <Settings fontSize="small" />
+                    </ListItemIcon>
+                    <Typography variant="body2">Settings</Typography>
+                  </MenuItem>
+                  <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.1)' }} />
+                </>
+              )}
               <MenuItem
                 onClick={handleLogout}
                 sx={{
@@ -572,10 +574,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </Box>
       </Box>
       
-      <PropertySelector 
-        open={propertySelectorOpen} 
-        onClose={() => setPropertySelectorOpen(false)} 
-      />
+      {/* Removed PropertySelector dialog from Layout; it will be rendered where needed (e.g., Dashboard) */}
     </Box>
   );
 };

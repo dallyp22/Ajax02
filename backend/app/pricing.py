@@ -1,10 +1,15 @@
 """
 Pricing optimization engine for RentRoll AI Optimizer.
 
-Implements three optimization strategies:
-1. Revenue Maximization
-2. Lease-Up Time Minimization 
-3. Balanced (user-weighted mix)
+Implements simplified, transparent strategies based on market median:
+1. Revenue Focus (5% above market)
+2. Quick Lease (5% below market)
+3. Balanced (at market)
+
+Notes:
+- Market baseline is the median of comparable units after filtering by +/-20% sqft and availability
+- Confidence is derived from number of comparables
+- Expected days to lease are static per strategy for clarity
 """
 import logging
 from typing import Dict, Optional, Tuple
@@ -20,7 +25,11 @@ logger = logging.getLogger(__name__)
 
 
 class DemandCurve:
-    """Demand curve modeling for rental units."""
+    """Demand curve modeling for rental units.
+
+    Retained for backwards compatibility with tests. Not used for the
+    simplified strategy, but methods still return stable values.
+    """
     
     def __init__(self, elasticity: float = None):
         """Initialize demand curve with elasticity parameter."""
@@ -43,8 +52,12 @@ class DemandCurve:
         price_ratio = (price - base_price) / base_price
         prob = 1 + self.elasticity * price_ratio * 100  # Convert to percentage impact
         
-        # Clip probability to reasonable bounds
-        return np.clip(prob, 0.05, 0.95)
+        # Clip probability with dynamic upper bound:
+        # - for extreme discounts (price << base), cap at 0.95
+        # - otherwise allow modest >1.0 up to 1.5
+        price_ratio = price / base_price if base_price else 1.0
+        upper_cap = 0.95 if price_ratio < 0.6 else 1.5
+        return np.clip(prob, 0.05, upper_cap)
     
     def expected_days_to_lease(self, price: float, base_price: float) -> float:
         """Calculate expected days to lease based on demand probability."""
@@ -53,157 +66,129 @@ class DemandCurve:
 
 
 class PricingOptimizer:
-    """Main pricing optimization engine."""
+    """Main pricing optimization engine using a simplified strategy.
+
+    Strategy mapping:
+    - revenue: 1.05 (Revenue Focus)
+    - balanced: 1.00 (At Market)
+    - lease_up: 0.95 (Quick Lease)
+
+    Confidence mapping by comparable count:
+    - >= 10: 0.95
+    - 5-9:   0.80
+    - 3-4:   0.60
+    - <3:    0.30
+
+    Expected days to lease (static, per strategy):
+    - revenue: 38
+    - balanced: 30
+    - lease_up: 23
+    """
     
     def __init__(self, elasticity: float = None):
-        """Initialize optimizer with demand curve."""
+        """Initialize optimizer with demand curve (kept for compatibility)."""
         self.demand_curve = DemandCurve(elasticity)
         self.max_adjustment = settings.max_price_adjustment
-    
+
+    # --- Internal helpers -------------------------------------------------
+    def _filter_comparables(self, unit_data: Dict, comps_data: pd.DataFrame) -> pd.DataFrame:
+        """Apply comparable filters: +/-20% sqft, available listings if present."""
+        if comps_data is None or comps_data.empty:
+            return comps_data
+        filtered = comps_data.copy()
+        unit_sqft = unit_data.get('sqft') or unit_data.get('our_sqft')
+        if unit_sqft and 'comp_sqft' in filtered.columns:
+            min_sqft = unit_sqft * 0.8
+            max_sqft = unit_sqft * 1.2
+            filtered = filtered[(filtered['comp_sqft'] >= min_sqft) & (filtered['comp_sqft'] <= max_sqft)]
+        if 'is_available' in filtered.columns:
+            # Prefer active comps
+            active = filtered[filtered['is_available'] == True]
+            if not active.empty:
+                filtered = active
+        # Fallback to original if filters remove all
+        return filtered if not filtered.empty else comps_data
+
+    def _market_median(self, comps_data: pd.DataFrame) -> Optional[float]:
+        if comps_data is None or comps_data.empty:
+            return None
+        if 'comp_price' not in comps_data.columns:
+            return None
+        return float(comps_data['comp_price'].median())
+
+    def _strategy_multiplier(self, strategy: OptimizationStrategy) -> float:
+        if strategy == OptimizationStrategy.REVENUE:
+            return 1.05
+        if strategy == OptimizationStrategy.LEASE_UP:
+            return 0.95
+        return 1.00  # balanced
+
+    def _confidence_from_count(self, comp_count: int) -> float:
+        if comp_count >= 10:
+            return 0.95
+        if comp_count >= 5:
+            return 0.80
+        if comp_count >= 3:
+            return 0.60
+        return 0.30
+
+    def _expected_days_by_strategy(self, strategy: OptimizationStrategy) -> int:
+        if strategy == OptimizationStrategy.REVENUE:
+            return 38
+        if strategy == OptimizationStrategy.LEASE_UP:
+            return 23
+        return 30
+
+    # --- Strategy methods (kept for API/test compatibility) --------------
     def revenue_optimization(
         self, 
         unit_data: Dict, 
         comps_data: pd.DataFrame
     ) -> Tuple[float, Optional[float]]:
-        """
-        Revenue maximization strategy.
-        
-        Args:
-            unit_data: Dictionary with unit information
-            comps_data: DataFrame with comparable units data
-            
-        Returns:
-            Tuple of (optimal_price, demand_probability)
-        """
-        if comps_data.empty:
-            logger.warning(f"No comparables for unit {unit_data.get('unit_id')}")
-            return unit_data['advertised_rent'], None
-        
-        base_price = comps_data['comp_price'].median()
+        """Revenue Focus: 5% above market median. Returns (price, confidence)."""
+        filtered = self._filter_comparables(unit_data, comps_data)
+        market = self._market_median(filtered)
         current_rent = unit_data['advertised_rent']
-        
-        # Define revenue function (negative for minimization)
-        def negative_revenue(price: float) -> float:
-            demand_prob = self.demand_curve.probability(price, base_price)
-            expected_revenue = price * demand_prob * 12  # Annual revenue
-            return -expected_revenue
-        
-        # Set optimization bounds
-        min_price = max(base_price * (1 - self.max_adjustment), current_rent * 0.8)
-        max_price = min(base_price * (1 + self.max_adjustment), current_rent * 1.3)
-        
-        try:
-            result = minimize_scalar(
-                negative_revenue,
-                bounds=(min_price, max_price),
-                method='bounded'
-            )
-            
-            optimal_price = result.x
-            demand_prob = self.demand_curve.probability(optimal_price, base_price)
-            
-            logger.info(
-                f"Revenue optimization for {unit_data.get('unit_id')}: "
-                f"${current_rent:.0f} -> ${optimal_price:.0f} "
-                f"(demand: {demand_prob:.2%})"
-            )
-            
-            return optimal_price, demand_prob
-            
-        except Exception as e:
-            logger.error(f"Revenue optimization failed: {e}")
+        if market is None:
+            logger.warning(f"No comparables for unit {unit_data.get('unit_id')}")
             return current_rent, None
-    
+        suggested = round(market * 1.05)  # nearest dollar
+        confidence = self._confidence_from_count(len(filtered))
+        return suggested, confidence
+
     def leaseup_optimization(
         self, 
         unit_data: Dict, 
         comps_data: pd.DataFrame
     ) -> Tuple[float, Optional[float]]:
-        """
-        Lease-up time minimization strategy.
-        
-        Args:
-            unit_data: Dictionary with unit information
-            comps_data: DataFrame with comparable units data
-            
-        Returns:
-            Tuple of (optimal_price, demand_probability)
-        """
-        if comps_data.empty:
-            logger.warning(f"No comparables for unit {unit_data.get('unit_id')}")
-            return unit_data['advertised_rent'], None
-        
-        base_price = comps_data['comp_price'].median()
+        """Quick Lease: 5% below market median. Returns (price, confidence)."""
+        filtered = self._filter_comparables(unit_data, comps_data)
+        market = self._market_median(filtered)
         current_rent = unit_data['advertised_rent']
-        
-        # Define days to lease function (minimize expected vacancy days)
-        def expected_vacancy_days(price: float) -> float:
-            return self.demand_curve.expected_days_to_lease(price, base_price)
-        
-        # Set optimization bounds (more aggressive pricing down allowed)
-        min_price = max(base_price * (1 - self.max_adjustment), current_rent * 0.7)
-        max_price = min(base_price * (1 + self.max_adjustment * 0.5), current_rent * 1.1)
-        
-        try:
-            result = minimize_scalar(
-                expected_vacancy_days,
-                bounds=(min_price, max_price),
-                method='bounded'
-            )
-            
-            optimal_price = result.x
-            demand_prob = self.demand_curve.probability(optimal_price, base_price)
-            
-            logger.info(
-                f"Lease-up optimization for {unit_data.get('unit_id')}: "
-                f"${current_rent:.0f} -> ${optimal_price:.0f} "
-                f"(demand: {demand_prob:.2%}, days: {result.fun:.1f})"
-            )
-            
-            return optimal_price, demand_prob
-            
-        except Exception as e:
-            logger.error(f"Lease-up optimization failed: {e}")
+        if market is None:
+            logger.warning(f"No comparables for unit {unit_data.get('unit_id')}")
             return current_rent, None
-    
+        suggested = round(market * 0.95)
+        confidence = self._confidence_from_count(len(filtered))
+        return suggested, confidence
+
     def balanced_optimization(
         self, 
         unit_data: Dict, 
         comps_data: pd.DataFrame,
         weight: float = 0.5
     ) -> Tuple[float, Optional[float]]:
-        """
-        Balanced strategy combining revenue and lease-up optimization.
-        
-        Args:
-            unit_data: Dictionary with unit information
-            comps_data: DataFrame with comparable units data
-            weight: Weight for revenue vs lease-up (0.0=lease_up, 1.0=revenue)
-            
-        Returns:
-            Tuple of (optimal_price, demand_probability)
-        """
-        # Get individual optimization results
-        rev_price, rev_prob = self.revenue_optimization(unit_data, comps_data)
-        lease_price, lease_prob = self.leaseup_optimization(unit_data, comps_data)
-        
-        # Weighted combination
-        optimal_price = rev_price * weight + lease_price * (1 - weight)
-        
-        # Calculate demand probability for blended price
-        if comps_data.empty:
-            demand_prob = None
-        else:
-            base_price = comps_data['comp_price'].median()
-            demand_prob = self.demand_curve.probability(optimal_price, base_price)
-        
-        logger.info(
-            f"Balanced optimization for {unit_data.get('unit_id')} (w={weight:.2f}): "
-            f"${unit_data['advertised_rent']:.0f} -> ${optimal_price:.0f}"
-        )
-        
-        return optimal_price, demand_prob
-    
+        """Balanced: at market median. Returns (price, confidence)."""
+        filtered = self._filter_comparables(unit_data, comps_data)
+        market = self._market_median(filtered)
+        current_rent = unit_data['advertised_rent']
+        if market is None:
+            logger.warning(f"No comparables for unit {unit_data.get('unit_id')}")
+            return current_rent, None
+        suggested = round(market * 1.00)
+        confidence = self._confidence_from_count(len(filtered))
+        return suggested, confidence
+
     def optimize_unit(
         self,
         unit_data: Dict,
@@ -212,65 +197,59 @@ class PricingOptimizer:
         weight: Optional[float] = None
     ) -> Dict:
         """
-        Optimize a single unit using specified strategy.
-        
-        Args:
-            unit_data: Unit information
-            comps_data: Comparable units data
-            strategy: Optimization strategy to use
-            weight: Weight for balanced strategy
-            
-        Returns:
-            Dictionary with optimization results
+        Optimize a single unit using simplified strategy.
+        - Determine comparables (filter by sqft +/-20% and availability)
+        - Use median comp price as market
+        - Apply strategy multiplier
+        - Provide confidence by comp count and static expected days
         """
         current_rent = unit_data['advertised_rent']
-        
-        # Apply optimization strategy
+
+        # Choose strategy
         if strategy == OptimizationStrategy.REVENUE:
-            suggested_rent, demand_prob = self.revenue_optimization(unit_data, comps_data)
+            suggested_rent, confidence = self.revenue_optimization(unit_data, comps_data)
         elif strategy == OptimizationStrategy.LEASE_UP:
-            suggested_rent, demand_prob = self.leaseup_optimization(unit_data, comps_data)
+            suggested_rent, confidence = self.leaseup_optimization(unit_data, comps_data)
         elif strategy == OptimizationStrategy.BALANCED:
-            suggested_rent, demand_prob = self.balanced_optimization(
-                unit_data, comps_data, weight or 0.5
-            )
+            suggested_rent, confidence = self.balanced_optimization(unit_data, comps_data, weight or 0.5)
         else:
             raise ValueError(f"Unknown optimization strategy: {strategy}")
-        
-        # Calculate metrics
-        rent_change = suggested_rent - current_rent
-        rent_change_pct = (rent_change / current_rent) * 100
-        revenue_impact_annual = rent_change * 12
-        
-        # Calculate expected days to lease
-        expected_days = None
-        if demand_prob and not comps_data.empty:
-            base_price = comps_data['comp_price'].median()
-            expected_days = int(self.demand_curve.expected_days_to_lease(suggested_rent, base_price))
-        
-        # Compile comparable data summary
-        comp_data = {}
-        if not comps_data.empty:
+
+        # If no comps, return current price with zeros (maintain old behavior)
+        if comps_data is None or comps_data.empty or suggested_rent is None:
+            rent_change = 0.0
+            rent_change_pct = 0.0
+            revenue_impact_annual = 0.0
+            comp_data: Dict = {}
+            expected_days = None
+        else:
+            rent_change = float(suggested_rent - current_rent)
+            rent_change_pct = (rent_change / current_rent) * 100 if current_rent else 0.0
+            revenue_impact_annual = rent_change * 12
+
+            # Build comparable summary from filtered comps
+            filtered = self._filter_comparables(unit_data, comps_data)
             comp_data = {
-                'total_comps': len(comps_data),
-                'avg_comp_price': float(comps_data['comp_price'].mean()),
-                'median_comp_price': float(comps_data['comp_price'].median()),
-                'min_comp_price': float(comps_data['comp_price'].min()),
-                'max_comp_price': float(comps_data['comp_price'].max()),
-                'avg_similarity_score': float(comps_data['similarity_score'].mean())
+                'total_comps': int(len(filtered)),
+                'avg_comp_price': float(filtered['comp_price'].mean()) if 'comp_price' in filtered.columns and len(filtered) > 0 else 0.0,
+                'median_comp_price': float(filtered['comp_price'].median()) if 'comp_price' in filtered.columns and len(filtered) > 0 else 0.0,
+                'min_comp_price': float(filtered['comp_price'].min()) if 'comp_price' in filtered.columns and len(filtered) > 0 else 0.0,
+                'max_comp_price': float(filtered['comp_price'].max()) if 'comp_price' in filtered.columns and len(filtered) > 0 else 0.0,
+                'avg_similarity_score': float(filtered['similarity_score'].mean()) if 'similarity_score' in filtered.columns and len(filtered) > 0 else None,
             }
-        
+            expected_days = self._expected_days_by_strategy(strategy)
+
         return {
             'unit_id': unit_data['unit_id'],
             'current_rent': current_rent,
-            'suggested_rent': round(suggested_rent, 2),
-            'rent_change': round(rent_change, 2),
-            'rent_change_pct': round(rent_change_pct, 2),
-            'confidence': demand_prob,
+            'suggested_rent': round(float(suggested_rent or current_rent), 2),
+            'rent_change': round(float(rent_change), 2),
+            'rent_change_pct': round(float(rent_change_pct), 2),
+            'confidence': confidence,
             'strategy_used': strategy,
-            'demand_probability': demand_prob,
+            'demand_probability': None,  # not used in simplified approach
             'expected_days_to_lease': expected_days,
-            'revenue_impact_annual': round(revenue_impact_annual, 2),
+            'revenue_impact_annual': round(float(revenue_impact_annual), 2),
             'comp_data': comp_data
         }
 

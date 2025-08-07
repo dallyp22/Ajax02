@@ -16,10 +16,6 @@ import {
   TableRow,
   Paper,
   LinearProgress,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Tabs,
   Tab,
   Divider,
@@ -41,6 +37,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Refresh as RefreshIcon,
+  FilterList as FilterListIcon,
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -60,10 +57,12 @@ import {
   ComposedChart,
   Area,
   AreaChart,
+  LabelList,
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { usePropertySelection } from '@/contexts/PropertySelectionContext';
+import PropertySelector from '@/components/PropertySelector';
 
 const COLORS = ['#01D1D1', '#2A9D8F', '#F4A261', '#E76F51', '#8884D8', '#82CA9D', '#FFC658'];
 
@@ -83,10 +82,13 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const DashboardPage: React.FC = () => {
-  const [selectedProperty, setSelectedProperty] = useState<string>('');
   const [activeTab, setActiveTab] = useState(0);
   const [showUnitDetails, setShowUnitDetails] = useState(false);
+  const [propertySelectorOpen, setPropertySelectorOpen] = useState(false);
   const { selectedProperties } = usePropertySelection();
+
+  // Focused property for deep analysis: use single selection from global selector
+  const selectedProperty = selectedProperties.length === 1 ? selectedProperties[0] : '';
 
   // Fetch portfolio-wide data with property filtering
   const { data: portfolioData, isLoading: portfolioLoading, error: portfolioError } = useQuery({
@@ -116,7 +118,7 @@ const DashboardPage: React.FC = () => {
     queryFn: () => apiService.getProperties(),
   });
 
-  // Fetch property-specific data when property is selected
+  // Fetch property-specific data when a single property is selected
   const { data: propertyCompetitionData, isLoading: competitionLoading } = useQuery({
     queryKey: ['property-competition', selectedProperty],
     queryFn: () => apiService.getPropertyCompetitionAnalysis(selectedProperty),
@@ -310,37 +312,32 @@ const DashboardPage: React.FC = () => {
             </Box>
           </Box>
 
-          {/* Property Selector */}
-          <Box sx={{ minWidth: 300 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Select Property for Deep Analysis</InputLabel>
-              <Select
-                value={selectedProperty}
-                label="Select Property for Deep Analysis"
-                onChange={(e) => setSelectedProperty(e.target.value)}
+          {/* Property Filter Trigger */}
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <MuiTooltip title={`${selectedProperties.length} properties selected`} arrow>
+              <Button
+                startIcon={<FilterListIcon />}
+                onClick={() => setPropertySelectorOpen(true)}
                 sx={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(1, 209, 209, 0.3)',
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                  color: '#01D1D1',
+                  borderColor: 'rgba(1, 209, 209, 0.3)',
+                  textTransform: 'none',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  px: 2,
+                  py: 0.5,
+                  minWidth: 'auto',
+                  '&:hover': {
                     borderColor: '#01D1D1',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#01D1D1',
+                    backgroundColor: 'rgba(1, 209, 209, 0.1)',
                   },
                 }}
+                variant="outlined"
+                size="small"
               >
-                <MenuItem value="">
-                  <em>Portfolio Overview</em>
-                </MenuItem>
-                {properties.map((property) => (
-                  <MenuItem key={property} value={property}>
-                    {property}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                Property Selector ({selectedProperties.length})
+              </Button>
+            </MuiTooltip>
           </Box>
         </Box>
 
@@ -528,16 +525,17 @@ const DashboardPage: React.FC = () => {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
                     <XAxis 
                       dataKey="name" 
-                      stroke="rgba(255, 255, 255, 0.8)"
+                      tick={{ fill: '#FFFFFF' }}
                       fontSize={12}
                       fontWeight={600}
                     />
-                    <YAxis stroke="rgba(255, 255, 255, 0.8)" fontSize={12} />
+                    <YAxis tick={{ fill: '#FFFFFF' }} fontSize={12} />
                     <Tooltip />
                     <Bar dataKey="value" fill="#8884d8">
                       {urgencyBreakdown.map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
+                      <LabelList dataKey="value" position="insideTop" fill="#FFFFFF" fontSize={10} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -755,11 +753,15 @@ const DashboardPage: React.FC = () => {
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={prepareRentComparisonData()}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="bedrooms" />
-                        <YAxis />
+                        <XAxis dataKey="bedrooms" tick={{ fill: '#FFFFFF' }} />
+                        <YAxis tick={{ fill: '#FFFFFF' }} />
                         <Tooltip />
-                        <Bar dataKey="ourRent" fill="#2A9D8F" name="Our Rent" />
-                        <Bar dataKey="marketRent" fill="#F4A261" name="Market Rent" />
+                        <Bar dataKey="ourRent" fill="#2A9D8F" name="Our Rent">
+                          <LabelList dataKey="unitCount" position="insideTop" fill="#FFFFFF" fontSize={10} />
+                        </Bar>
+                        <Bar dataKey="marketRent" fill="#F4A261" name="Market Rent">
+                          <LabelList dataKey="unitCount" position="insideTop" fill="#FFFFFF" fontSize={10} />
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -782,11 +784,15 @@ const DashboardPage: React.FC = () => {
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={prepareMarketPositioningData()}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="beds" />
-                        <YAxis />
+                        <XAxis dataKey="beds" tick={{ fill: '#FFFFFF' }} />
+                        <YAxis tick={{ fill: '#FFFFFF' }} />
                         <Tooltip />
-                        <Bar dataKey="ourRentPerSqft" fill="#2A9D8F" name="Our $/SqFt" />
-                        <Bar dataKey="marketRentPerSqft" fill="#F4A261" name="Market $/SqFt" />
+                        <Bar dataKey="ourRentPerSqft" fill="#2A9D8F" name="Our $/SqFt">
+                          <LabelList dataKey="unitCount" position="insideTop" fill="#FFFFFF" fontSize={10} />
+                        </Bar>
+                        <Bar dataKey="marketRentPerSqft" fill="#F4A261" name="Market $/SqFt">
+                          <LabelList dataKey="unitCount" position="insideTop" fill="#FFFFFF" fontSize={10} />
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -1351,6 +1357,7 @@ const DashboardPage: React.FC = () => {
           </Box>
         )}
       </TabPanel>
+      <PropertySelector open={propertySelectorOpen} onClose={() => setPropertySelectorOpen(false)} />
     </Box>
   );
 };

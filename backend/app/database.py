@@ -370,7 +370,7 @@ class BigQueryService:
                 COUNT(*) as unit_count,
                 AVG(advertised_rent) as avg_rent,
                 COUNT(CASE WHEN status = 'OCCUPIED' THEN 1 END) as occupied_count,
-                ROUND(COUNT(CASE WHEN status = 'OCCUPIED' THEN 1 END) * 100.0 / COUNT(*), 1) as occupancy_rate
+                ROUND(COUNT(CASE WHEN status IN ('OCCUPIED','NOTICE') THEN 1 END) * 100.0 / COUNT(*), 1) as occupancy_rate
             FROM {self._get_table_name(self.mart_dataset, 'unit_snapshot')}
             WHERE has_complete_data = TRUE
             {property_filter}
@@ -387,7 +387,7 @@ class BigQueryService:
             CAST(p.avg_rent AS STRING) as str_value5,
             CAST(p.total_monthly_revenue AS STRING) as str_value6,
             CAST(p.avg_occupied_rent AS STRING) as str_value7,
-            CAST(ROUND(p.occupied_units * 100.0 / p.total_units, 1) AS STRING) as str_value8,
+            CAST(ROUND((p.occupied_units + p.notice_units) * 100.0 / p.total_units, 1) AS STRING) as str_value8,
             CAST(p.total_monthly_revenue * 12 AS STRING) as str_value9
         FROM portfolio_stats p
         
@@ -841,7 +841,8 @@ class BigQueryService:
             
             # Calculate occupancy rate
             if performance_data['total_units'] > 0:
-                performance_data['occupancy_rate'] = (performance_data['occupied_units'] / performance_data['total_units']) * 100
+                occupied_plus_notice = (performance_data.get('occupied_units') or 0) + (performance_data.get('notice_units') or 0)
+                performance_data['occupancy_rate'] = (occupied_plus_notice / performance_data['total_units']) * 100
             else:
                 performance_data['occupancy_rate'] = 0
                 

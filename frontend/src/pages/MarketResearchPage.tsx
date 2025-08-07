@@ -51,6 +51,7 @@ import {
   Line,
   ComposedChart,
   Area,
+  LabelList,
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
@@ -68,6 +69,12 @@ const COLORS = {
   high: '#EF4444',
   medium: '#F59E0B',
   low: '#10B981',
+};
+
+const AXIS_STYLE = {
+  tick: { fill: '#FFFFFF' },
+  axisLine: { stroke: 'rgba(255,255,255,0.6)' },
+  tickLine: { stroke: 'rgba(255,255,255,0.6)' },
 };
 
 interface TabPanelProps {
@@ -203,7 +210,7 @@ const MarketResearchPage: React.FC = () => {
       <Typography variant="h4" gutterBottom sx={{ color: '#01D1D1', fontWeight: 600 }}>
         Market Research Analytics
       </Typography>
-      <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+      <Typography variant="subtitle1" sx={{ color: '#FFFFFF' }} gutterBottom>
         Archive Apartments vs Competition Analysis
       </Typography>
 
@@ -295,7 +302,7 @@ const MarketResearchPage: React.FC = () => {
                 <Typography variant="h6" gutterBottom>
                   Market Rent Comparison by Property
                 </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+                <Typography variant="body2" sx={{ color: '#FFFFFF' }} gutterBottom>
                   {bedroomFilter !== 'All' ? `${bedroomFilter} bedroom units` : 'All bedroom types'} - 
                   <span style={{ color: COLORS.archive, fontWeight: 'bold' }}> ● Archive</span> vs 
                   <span style={{ color: COLORS.competition, fontWeight: 'bold' }}> ● Competition</span>
@@ -315,8 +322,11 @@ const MarketResearchPage: React.FC = () => {
                         height={120}
                         fontSize={11}
                         interval={0}
+                        tick={AXIS_STYLE.tick}
+                        axisLine={AXIS_STYLE.axisLine}
+                        tickLine={AXIS_STYLE.tickLine}
                       />
-                      <YAxis />
+                      <YAxis tick={AXIS_STYLE.tick} axisLine={AXIS_STYLE.axisLine} tickLine={AXIS_STYLE.tickLine} />
                       <Tooltip 
                         formatter={(value: any, name: string) => [
                           name === 'rent' ? formatCurrency(value) : value,
@@ -332,6 +342,7 @@ const MarketResearchPage: React.FC = () => {
                         {prepareBenchmarkData().map((entry: any, index: any) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))}
+                        <LabelList dataKey="units" position="insideTop" fill="#FFFFFF" fontSize={10} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -347,7 +358,7 @@ const MarketResearchPage: React.FC = () => {
                 <Typography variant="h6" gutterBottom>
                   Rent Per Square Foot Comparison
                 </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+                <Typography variant="body2" sx={{ color: '#FFFFFF' }} gutterBottom>
                   {bedroomFilter !== 'All' ? `${bedroomFilter} bedroom units` : 'All bedroom types'} - 
                   <span style={{ color: COLORS.archive, fontWeight: 'bold' }}> ● Archive</span> vs 
                   <span style={{ color: COLORS.competition, fontWeight: 'bold' }}> ● Competition</span>
@@ -367,8 +378,11 @@ const MarketResearchPage: React.FC = () => {
                         height={120}
                         fontSize={11}
                         interval={0}
+                        tick={AXIS_STYLE.tick}
+                        axisLine={AXIS_STYLE.axisLine}
+                        tickLine={AXIS_STYLE.tickLine}
                       />
-                      <YAxis />
+                      <YAxis tick={AXIS_STYLE.tick} axisLine={AXIS_STYLE.axisLine} tickLine={AXIS_STYLE.tickLine} />
                       <Tooltip 
                         formatter={(value: any) => [`$${value?.toFixed(2)}`, 'PSF']}
                         labelFormatter={(label) => `Property: ${label}`}
@@ -377,6 +391,7 @@ const MarketResearchPage: React.FC = () => {
                         {prepareBenchmarkData().sort((a: any, b: any) => b.psf - a.psf).map((entry: any, index: any) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))}
+                        <LabelList dataKey="units" position="insideTop" fill="#FFFFFF" fontSize={10} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -458,13 +473,17 @@ const MarketResearchPage: React.FC = () => {
                         textAnchor="end"
                         height={80}
                         fontSize={10}
+                        tick={AXIS_STYLE.tick}
+                        axisLine={AXIS_STYLE.axisLine}
+                        tickLine={AXIS_STYLE.tickLine}
                       />
-                      <YAxis />
+                      <YAxis tick={AXIS_STYLE.tick} axisLine={AXIS_STYLE.axisLine} tickLine={AXIS_STYLE.tickLine} />
                       <Tooltip />
                       <Bar dataKey="avgDaysVacant" name="Avg Days Vacant">
                         {prepareVacancyData().map((entry: any, index: any) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))}
+                        <LabelList dataKey="totalUnits" position="insideTop" fill="#FFFFFF" fontSize={10} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -493,10 +512,15 @@ const MarketResearchPage: React.FC = () => {
                         textAnchor="end"
                         height={80}
                         fontSize={10}
+                        tick={AXIS_STYLE.tick}
+                        axisLine={AXIS_STYLE.axisLine}
+                        tickLine={AXIS_STYLE.tickLine}
                       />
-                      <YAxis />
+                      <YAxis tick={AXIS_STYLE.tick} axisLine={AXIS_STYLE.axisLine} tickLine={AXIS_STYLE.tickLine} />
                       <Tooltip formatter={(value: any) => [`${value?.toFixed(1)}%`, '% Vacant 30+ Days']} />
-                      <Bar dataKey="pct_vacant_30plus" name="% Vacant 30+ Days" fill="#f59e0b" />
+                      <Bar dataKey="pct_vacant_30plus" name="% Vacant 30+ Days" fill="#f59e0b" >
+                        <LabelList dataKey="totalUnits" position="insideTop" fill="#FFFFFF" fontSize={10} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -580,7 +604,7 @@ const MarketResearchPage: React.FC = () => {
                 <Typography variant="h6" gutterBottom>
                   Market Rent Clustering
                 </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+                <Typography variant="body2" sx={{ color: '#FFFFFF' }} gutterBottom>
                   Rent bucket distribution across Archive and Competition
                 </Typography>
                 {clusteringLoading ? (

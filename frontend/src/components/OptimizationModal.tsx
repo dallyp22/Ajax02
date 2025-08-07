@@ -254,8 +254,8 @@ const OptimizationModal: React.FC<OptimizationModalProps> = ({
                           Price Range
                         </Typography>
                         <Typography variant="body1">
-                          ${comparablesData.min_comp_price.toLocaleString()} - $
-                          {comparablesData.max_comp_price.toLocaleString()}
+                          ${Math.round(comparablesData.min_comp_price).toLocaleString()} - $
+                          {Math.round(comparablesData.max_comp_price).toLocaleString()}
                         </Typography>
                       </Grid>
                     </Grid>
@@ -300,7 +300,7 @@ const OptimizationModal: React.FC<OptimizationModalProps> = ({
                                   </TableCell>
                                   <TableCell align="right">
                                     <Typography variant="body2" fontWeight="medium">
-                                      ${comp.comp_price.toLocaleString()}
+                                      ${Math.round(comp.comp_price).toLocaleString()}
                                     </Typography>
                                     <Typography variant="caption" color={comp.price_gap_pct && comp.price_gap_pct < 0 ? 'error' : 'success'}>
                                       {comp.price_gap_pct ? `${comp.price_gap_pct > 0 ? '+' : ''}${comp.price_gap_pct.toFixed(1)}%` : 'N/A'}

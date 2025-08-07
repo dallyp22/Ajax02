@@ -51,6 +51,7 @@ import {
   Line,
   ComposedChart,
   Area,
+  LabelList,
 } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
@@ -407,7 +408,7 @@ const AnalyticsPage: React.FC = () => {
                       interval={0}
                       tick={{ fill: '#ffffff' }}
                     />
-                    <YAxis />
+                    <YAxis tick={{ fill: '#ffffff' }} />
                     <Tooltip 
                       formatter={(value: any, name: string, props: any) => [
                         name === 'rent' ? formatCurrency(value) : value,
@@ -438,6 +439,7 @@ const AnalyticsPage: React.FC = () => {
                       {prepareBenchmarkData().map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
+                      <LabelList dataKey="units" position="insideTop" fill="#FFFFFF" fontSize={10} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -468,7 +470,7 @@ const AnalyticsPage: React.FC = () => {
                       interval={0}
                       tick={{ fill: '#ffffff' }}
                     />
-                    <YAxis />
+                    <YAxis tick={{ fill: '#ffffff' }} />
                     <Tooltip 
                       formatter={(value: any, name: string, props: any) => [
                         name === 'psf' ? `$${value.toFixed(2)}/sqft` : value,
@@ -499,6 +501,7 @@ const AnalyticsPage: React.FC = () => {
                       {prepareBenchmarkData().map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
+                      <LabelList dataKey="units" position="insideTop" fill="#FFFFFF" fontSize={10} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -576,7 +579,7 @@ const AnalyticsPage: React.FC = () => {
                       fontSize={10}
                       tick={{ fill: '#ffffff' }}
                     />
-                    <YAxis />
+                    <YAxis tick={{ fill: '#ffffff' }} />
                     <Tooltip 
                       formatter={(value: any, name: string, props: any) => [
                         `${value} days`,
@@ -603,6 +606,7 @@ const AnalyticsPage: React.FC = () => {
                       {prepareVacancyData().map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
+                      <LabelList dataKey="totalUnits" position="insideTop" fill="#FFFFFF" fontSize={10} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -627,7 +631,7 @@ const AnalyticsPage: React.FC = () => {
                       fontSize={10}
                       tick={{ fill: '#ffffff' }}
                     />
-                    <YAxis />
+                    <YAxis tick={{ fill: '#ffffff' }} />
                     <Tooltip 
                       formatter={(value: any, name: string, props: any) => [
                         `${value}%`,
@@ -654,6 +658,7 @@ const AnalyticsPage: React.FC = () => {
                       {prepareVacancyData().map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
+                      <LabelList dataKey="totalUnits" position="insideTop" fill="#FFFFFF" fontSize={10} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -787,7 +792,7 @@ const AnalyticsPage: React.FC = () => {
                       height={80}
                       tick={{ fill: '#ffffff' }}
                     />
-                    <YAxis />
+                    <YAxis tick={{ fill: '#ffffff' }} />
                     <Tooltip 
                       contentStyle={{
                         backgroundColor: 'rgba(42, 42, 48, 0.95)',
@@ -806,8 +811,12 @@ const AnalyticsPage: React.FC = () => {
                         color: '#ffffff'
                       }}
                     />
-                    <Bar dataKey="nustyleUnits" fill={COLORS.nustyle} name="NuStyle Units" />
-                    <Bar dataKey="competitionUnits" fill={COLORS.competition} name="Competition Units" />
+                    <Bar dataKey="nustyleUnits" fill={COLORS.nustyle} name="NuStyle Units">
+                      <LabelList dataKey="nustyleUnits" position="insideTop" fill="#FFFFFF" fontSize={10} />
+                    </Bar>
+                    <Bar dataKey="competitionUnits" fill={COLORS.competition} name="Competition Units">
+                      <LabelList dataKey="competitionUnits" position="insideTop" fill="#FFFFFF" fontSize={10} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
