@@ -21,6 +21,7 @@ import {
   ListItemAvatar,
   Tooltip,
   Button,
+  CircularProgress,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -74,6 +75,41 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       setAllProperties(propertiesData.properties);
     }
   }, [propertiesData, propertiesError, propertiesLoading, setAllProperties]);
+
+  // Show loading overlay while properties are loading
+  if (propertiesLoading) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #1F1F23 0%, #1A1A1F 50%, #1F1F23 100%)',
+          flexDirection: 'column',
+          gap: 2,
+        }}
+      >
+        <CircularProgress 
+          size={60} 
+          sx={{
+            color: '#01D1D1',
+            filter: 'drop-shadow(0 0 8px rgba(1, 209, 209, 0.8))',
+          }}
+        />
+        <Typography
+          variant="body1"
+          sx={{
+            color: 'rgba(255, 255, 255, 0.8)',
+            fontWeight: 500,
+            letterSpacing: '0.5px',
+          }}
+        >
+          Loading properties...
+        </Typography>
+      </Box>
+    );
+  }
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);

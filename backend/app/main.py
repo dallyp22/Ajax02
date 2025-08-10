@@ -5,6 +5,7 @@ import asyncio
 import logging
 import json
 import os
+import pandas as pd
 from typing import List, Optional, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
@@ -226,7 +227,7 @@ async def get_unit_comparables(unit_id: str):
                 "comp_price": row["comp_price"],
                 "is_available": row["is_available"],
                 "sqft_delta_pct": row["sqft_delta_pct"],
-                "price_gap_pct": row["price_gap_pct"],
+                "price_gap_pct": row["price_gap_pct"] if pd.notna(row["price_gap_pct"]) else None,
                 "similarity_score": row["similarity_score"],
                 "comp_rank": row["comp_rank"]
             })
@@ -239,11 +240,11 @@ async def get_unit_comparables(unit_id: str):
             unit=unit,
             comparables=comparables,
             total_comps=first_row["total_comps"],
-            avg_comp_price=first_row["avg_comp_price"],
-            median_comp_price=first_row["median_comp_price"],
-            min_comp_price=first_row["min_comp_price"],
-            max_comp_price=first_row["max_comp_price"],
-            comp_price_stddev=first_row.get("comp_price_stddev")
+            avg_comp_price=first_row["avg_comp_price"] if pd.notna(first_row["avg_comp_price"]) else 0,
+            median_comp_price=first_row["median_comp_price"] if pd.notna(first_row["median_comp_price"]) else 0,
+            min_comp_price=first_row["min_comp_price"] if pd.notna(first_row["min_comp_price"]) else 0,
+            max_comp_price=first_row["max_comp_price"] if pd.notna(first_row["max_comp_price"]) else 0,
+            comp_price_stddev=first_row.get("comp_price_stddev") if pd.notna(first_row.get("comp_price_stddev", 0)) else None
         )
         
     except HTTPException:
@@ -273,7 +274,8 @@ async def optimize_unit(unit_id: str, request: OptimizeRequest):
             unit_data=unit,
             comps_data=comps_df,
             strategy=request.strategy,
-            weight=request.weight
+            weight=request.weight,
+            excluded_comp_ids=request.excluded_comp_ids
         )
         
         return OptimizeResponse(
@@ -292,7 +294,8 @@ async def _optimize_single_unit(
     unit: dict, 
     strategy: str, 
     weight: Optional[float] = None,
-    custom_elasticity: Optional[float] = None
+    custom_elasticity: Optional[float] = None,
+    excluded_comp_ids: Optional[List[str]] = None
 ) -> Optional[OptimizationResult]:
     """Optimize a single unit (helper for batch processing)."""
     try:
@@ -307,7 +310,8 @@ async def _optimize_single_unit(
             unit_data=unit,
             comps_data=comps_df,
             strategy=strategy,
-            weight=weight
+            weight=weight,
+            excluded_comp_ids=excluded_comp_ids
         )
         
         return OptimizationResult(**result)

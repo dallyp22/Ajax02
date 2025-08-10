@@ -22,20 +22,30 @@ OPTIONS(
 -- staging.our_units
 CREATE OR REPLACE VIEW `rentroll-ai.staging.our_units` AS
 SELECT
-    Unit              AS unit_id,
+    CONCAT(Property, '_', Unit) AS unit_id,  -- Make unit_id unique across properties
+    Unit              AS unit_number,        -- Keep original unit number
     Property          AS property,
     Bedroom           AS bed,
     Bathrooms         AS bath,
     Sqft              AS sqft,
     Advertised_Rent   AS advertised_rent,
     Market_Rent       AS market_rent,
-    Status            AS status,             -- OCCUPIED / VACANT
+    -- Map actual status values to standardized values
+    CASE 
+        WHEN Status = 'Current' THEN 'OCCUPIED'
+        WHEN Status IN ('Vacant-Unrented', 'Vacant-Rented') THEN 'VACANT'
+        WHEN Status IN ('Notice-Unrented', 'Notice-Rented') THEN 'NOTICE'
+        WHEN Status = 'Evict' THEN 'VACANT'
+        ELSE 'UNKNOWN'
+    END AS status,
+    Status AS raw_status,  -- Keep original for debugging
     Move_out          AS move_out_date,
     Lease_To          AS lease_end_date,
     -- Additional computed fields
     CASE 
-        WHEN Status = 'VACANT' THEN TRUE
-        WHEN Status = 'OCCUPIED' AND DATE_DIFF(Lease_To, CURRENT_DATE(), DAY) <= 60 THEN TRUE
+        WHEN Status IN ('Vacant-Unrented', 'Vacant-Rented', 'Evict') THEN TRUE
+        WHEN Status = 'Current' AND DATE_DIFF(Lease_To, CURRENT_DATE(), DAY) <= 60 THEN TRUE
+        WHEN Status IN ('Notice-Unrented', 'Notice-Rented') THEN TRUE
         ELSE FALSE
     END AS needs_pricing,
     CASE 
@@ -90,6 +100,22 @@ SELECT
         WHEN u.market_rent > 0 THEN (u.advertised_rent - u.market_rent) / u.market_rent * 100
         ELSE NULL
     END AS rent_premium_pct,
+    
+    -- Market position categorization based on premium/discount
+    CASE 
+        WHEN u.market_rent IS NULL OR u.market_rent = 0 THEN 'UNKNOWN'
+        WHEN (u.advertised_rent - u.market_rent) / u.market_rent * 100 > 10 THEN 'PREMIUM'
+        WHEN (u.advertised_rent - u.market_rent) / u.market_rent * 100 > 5 THEN 'ABOVE_MARKET'
+        WHEN (u.advertised_rent - u.market_rent) / u.market_rent * 100 >= -5 THEN 'AT_MARKET'
+        WHEN (u.advertised_rent - u.market_rent) / u.market_rent * 100 >= -10 THEN 'BELOW_MARKET'
+        ELSE 'DISCOUNT'
+    END AS market_position,
+    
+    -- Premium/discount percentage for easier reference
+    CASE 
+        WHEN u.market_rent > 0 THEN (u.advertised_rent - u.market_rent) / u.market_rent * 100
+        ELSE NULL
+    END AS premium_discount_pct,
     
     -- Urgency metrics
     CASE 

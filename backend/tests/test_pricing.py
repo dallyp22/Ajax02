@@ -196,6 +196,57 @@ class TestPricingOptimizer:
                 "invalid_strategy"
             )
 
+    def test_revenue_optimization_above_market(self):
+        """Test that revenue optimization never decreases rent below current when current is above market."""
+        # Setup: current rent is $2500, market median is $2200
+        # Revenue optimization should keep current rent, not decrease to $2310 (market * 1.05)
+        unit_data = {
+            'unit_id': 'TEST_UNIT',
+            'advertised_rent': 2500,  # Current rent above market
+            'sqft': 1000
+        }
+        
+        # Create comparables with lower median than current rent
+        comps_data = pd.DataFrame([
+            {'comp_price': 2000, 'comp_sqft': 950, 'is_available': True},
+            {'comp_price': 2200, 'comp_sqft': 1000, 'is_available': True},  # This will be median
+            {'comp_price': 2400, 'comp_sqft': 1050, 'is_available': True},
+        ])
+        
+        result = self.optimizer.revenue_optimization(unit_data, comps_data)
+        suggested_rent, confidence = result
+        
+        # Should keep current rent (2500) since it's higher than market + 5% (2310)
+        assert suggested_rent == 2500
+        assert confidence is not None
+        print(f"Revenue optimization: current=${unit_data['advertised_rent']}, market={2200}, suggested=${suggested_rent}")
+        
+    def test_revenue_optimization_below_market(self):
+        """Test that revenue optimization increases rent when current is below market."""
+        # Setup: current rent is $1800, market median is $2200
+        # Revenue optimization should increase to $2310 (market * 1.05)
+        unit_data = {
+            'unit_id': 'TEST_UNIT',
+            'advertised_rent': 1800,  # Current rent below market
+            'sqft': 1000
+        }
+        
+        # Create comparables with higher median than current rent
+        comps_data = pd.DataFrame([
+            {'comp_price': 2000, 'comp_sqft': 950, 'is_available': True},
+            {'comp_price': 2200, 'comp_sqft': 1000, 'is_available': True},  # This will be median
+            {'comp_price': 2400, 'comp_sqft': 1050, 'is_available': True},
+        ])
+        
+        result = self.optimizer.revenue_optimization(unit_data, comps_data)
+        suggested_rent, confidence = result
+        
+        # Should increase to market + 5% (2310) since it's higher than current (1800)
+        expected_rent = round(2200 * 1.05)  # 2310
+        assert suggested_rent == expected_rent
+        assert confidence is not None
+        print(f"Revenue optimization: current=${unit_data['advertised_rent']}, market={2200}, suggested=${suggested_rent}")
+
 
 if __name__ == '__main__':
     pytest.main([__file__]) 

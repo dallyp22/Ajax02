@@ -28,6 +28,7 @@ import {
   Paper,
   IconButton,
   Collapse,
+  Checkbox,
 } from '@mui/material';
 import { 
   ExpandMore as ExpandMoreIcon,
@@ -63,6 +64,7 @@ const OptimizationModal: React.FC<OptimizationModalProps> = ({
   const [weight, setWeight] = useState<number>(0.5);
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
   const [showComparablesDetail, setShowComparablesDetail] = useState(false);
+  const [selectedCompIds, setSelectedCompIds] = useState<Set<string>>(new Set());
 
   // Fetch comparables for the unit
   const {
@@ -73,6 +75,13 @@ const OptimizationModal: React.FC<OptimizationModalProps> = ({
     queryFn: () => apiService.getUnitComparables(unit!.unit_id),
     enabled: !!unit?.unit_id,
   });
+
+  // Initialize all comparables as selected when data loads
+  React.useEffect(() => {
+    if (comparablesData?.comparables) {
+      setSelectedCompIds(new Set(comparablesData.comparables.map(comp => comp.comp_id)));
+    }
+  }, [comparablesData]);
 
   // Optimization mutation
   const optimizeMutation = useMutation({
@@ -87,9 +96,14 @@ const OptimizationModal: React.FC<OptimizationModalProps> = ({
   const handleOptimize = () => {
     if (!unit) return;
 
+    // Calculate excluded comparables (those not selected)
+    const allCompIds = comparablesData?.comparables.map(comp => comp.comp_id) || [];
+    const excludedCompIds = allCompIds.filter(compId => !selectedCompIds.has(compId));
+
     const request: OptimizeRequest = {
       strategy,
       ...(strategy === OptimizationStrategy.BALANCED && { weight }),
+      ...(excludedCompIds.length > 0 && { excluded_comp_ids: excludedCompIds }),
     };
 
     optimizeMutation.mutate(request);
@@ -98,6 +112,26 @@ const OptimizationModal: React.FC<OptimizationModalProps> = ({
   const handleClose = () => {
     setOptimizationResult(null);
     onClose();
+  };
+
+  const handleCompSelection = (compId: string, selected: boolean) => {
+    const newSelected = new Set(selectedCompIds);
+    if (selected) {
+      newSelected.add(compId);
+    } else {
+      newSelected.delete(compId);
+    }
+    setSelectedCompIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (comparablesData?.comparables) {
+      setSelectedCompIds(new Set(comparablesData.comparables.map(comp => comp.comp_id)));
+    }
+  };
+
+  const handleSelectNone = () => {
+    setSelectedCompIds(new Set());
   };
 
   if (!unit) return null;
@@ -264,13 +298,27 @@ const OptimizationModal: React.FC<OptimizationModalProps> = ({
                     <Collapse in={showComparablesDetail}>
                       <Box mt={2}>
                         <Divider sx={{ mb: 2 }} />
-                        <Typography variant="subtitle1" gutterBottom>
-                          Individual Comparable Units ({comparablesData.comparables.length})
-                        </Typography>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                          <Typography variant="subtitle1">
+                            Individual Comparable Units ({comparablesData.comparables.length})
+                          </Typography>
+                          <Box display="flex" gap={1}>
+                            <Typography variant="body2" color="textSecondary" sx={{ alignSelf: 'center' }}>
+                              {selectedCompIds.size} of {comparablesData.comparables.length} selected
+                            </Typography>
+                            <Button size="small" onClick={handleSelectAll} disabled={selectedCompIds.size === comparablesData.comparables.length}>
+                              Select All
+                            </Button>
+                            <Button size="small" onClick={handleSelectNone} disabled={selectedCompIds.size === 0}>
+                              Select None
+                            </Button>
+                          </Box>
+                        </Box>
                         <TableContainer component={Paper} variant="outlined">
                           <Table size="small">
                             <TableHead>
                               <TableRow>
+                                <TableCell padding="checkbox">Include</TableCell>
                                 <TableCell>Property</TableCell>
                                 <TableCell align="right">Sqft</TableCell>
                                 <TableCell align="right">Price</TableCell>
@@ -282,6 +330,13 @@ const OptimizationModal: React.FC<OptimizationModalProps> = ({
                             <TableBody>
                               {comparablesData.comparables.map((comp, index) => (
                                 <TableRow key={index}>
+                                  <TableCell padding="checkbox">
+                                    <Checkbox
+                                      checked={selectedCompIds.has(comp.comp_id)}
+                                      onChange={(e) => handleCompSelection(comp.comp_id, e.target.checked)}
+                                      size="small"
+                                    />
+                                  </TableCell>
                                   <TableCell>
                                     <Typography variant="body2" fontWeight="medium">
                                       {comp.comp_property}
@@ -313,9 +368,9 @@ const OptimizationModal: React.FC<OptimizationModalProps> = ({
                                   </TableCell>
                                   <TableCell align="right">
                                     <Chip
-                                      label={`${(comp.similarity_score * 100).toFixed(0)}%`}
+                                      label={`${comp.similarity_score.toFixed(0)}%`}
                                       size="small"
-                                      color={comp.similarity_score >= 0.9 ? 'success' : 'default'}
+                                      color={comp.similarity_score >= 90 ? 'success' : 'default'}
                                     />
                                   </TableCell>
                                   <TableCell align="center">
@@ -490,15 +545,23 @@ const OptimizationModal: React.FC<OptimizationModalProps> = ({
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={handleClose}>Close</Button>
-        <Button
-          variant="contained"
-          onClick={handleOptimize}
-          disabled={optimizeMutation.isPending}
-          startIcon={optimizeMutation.isPending ? <CircularProgress size={20} /> : null}
-        >
-          {optimizeMutation.isPending ? 'Optimizing...' : 'Optimize Rent'}
-        </Button>
+        <Box display="flex" alignItems="center" gap={2} width="100%">
+          <Button onClick={handleClose}>Close</Button>
+          <Box flex={1} />
+          {comparablesData?.comparables && (
+            <Typography variant="body2" color="textSecondary">
+              Using {selectedCompIds.size} of {comparablesData.comparables.length} comparables
+            </Typography>
+          )}
+          <Button
+            variant="contained"
+            onClick={handleOptimize}
+            disabled={optimizeMutation.isPending || selectedCompIds.size === 0}
+            startIcon={optimizeMutation.isPending ? <CircularProgress size={20} /> : null}
+          >
+            {optimizeMutation.isPending ? 'Optimizing...' : 'Optimize Rent'}
+          </Button>
+        </Box>
       </DialogActions>
     </Dialog>
   );

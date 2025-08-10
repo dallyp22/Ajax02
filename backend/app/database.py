@@ -947,15 +947,19 @@ class BigQueryService:
             """
             
             units_result = self.client.query(units_query).to_dataframe()
-            units_data = units_result.to_dict(orient='records')
+            units_data_raw = units_result.to_dict(orient='records')
+            
+            # Clean NaN values from the data before processing
+            from app.utils import serialize_for_json
+            units_data = [serialize_for_json(unit) for unit in units_data_raw]
             
             logger.info(f"Units query returned {len(units_data)} rows for property: {property_name}")
             
             # Calculate summary statistics from the results
             total_units = len(units_data)
-            units_50plus = sum(1 for unit in units_data if unit.get('potential_rent_increase', 0) > 50)
-            units_100plus = sum(1 for unit in units_data if unit.get('potential_rent_increase', 0) > 100)
-            total_monthly_opp = sum(unit.get('potential_rent_increase', 0) or 0 for unit in units_data)
+            units_50plus = sum(1 for unit in units_data if (unit.get('potential_rent_increase') or 0) > 50)
+            units_100plus = sum(1 for unit in units_data if (unit.get('potential_rent_increase') or 0) > 100)
+            total_monthly_opp = sum(unit.get('potential_rent_increase') or 0 for unit in units_data)
             total_annual_opp = total_monthly_opp * 12
             avg_rent_gap = total_monthly_opp / total_units if total_units > 0 else 0
             
@@ -1020,6 +1024,10 @@ class BigQueryService:
                     unit['potential_rent_increase'] = 0
                     unit['annual_opportunity'] = 0
                     unit['market_position'] = 'NO_DATA'
+                    
+                    # Clean NaN values from the unit dict
+                    from app.utils import serialize_for_json
+                    unit = serialize_for_json(unit)
                     units_data.append(unit)
                 
                 # Calculate basic summary

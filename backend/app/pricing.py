@@ -12,7 +12,7 @@ Notes:
 - Expected days to lease are static per strategy for clarity
 """
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -91,11 +91,17 @@ class PricingOptimizer:
         self.max_adjustment = settings.max_price_adjustment
 
     # --- Internal helpers -------------------------------------------------
-    def _filter_comparables(self, unit_data: Dict, comps_data: pd.DataFrame) -> pd.DataFrame:
-        """Apply comparable filters: +/-20% sqft, available listings if present."""
+    def _filter_comparables(self, unit_data: Dict, comps_data: pd.DataFrame, excluded_comp_ids: Optional[List[str]] = None) -> pd.DataFrame:
+        """Apply comparable filters: +/-20% sqft, available listings if present, exclude user-specified comps."""
         if comps_data is None or comps_data.empty:
             return comps_data
         filtered = comps_data.copy()
+        
+        # Filter out user-excluded comparables first
+        if excluded_comp_ids and 'comp_id' in filtered.columns:
+            filtered = filtered[~filtered['comp_id'].isin(excluded_comp_ids)]
+            logger.info(f"Excluded {len(excluded_comp_ids)} user-specified comparables")
+        
         unit_sqft = unit_data.get('sqft') or unit_data.get('our_sqft')
         if unit_sqft and 'comp_sqft' in filtered.columns:
             min_sqft = unit_sqft * 0.8
@@ -143,50 +149,91 @@ class PricingOptimizer:
     def revenue_optimization(
         self, 
         unit_data: Dict, 
-        comps_data: pd.DataFrame
+        comps_data: pd.DataFrame,
+        excluded_comp_ids: Optional[List[str]] = None
     ) -> Tuple[float, Optional[float]]:
-        """Revenue Focus: 5% above market median. Returns (price, confidence)."""
-        filtered = self._filter_comparables(unit_data, comps_data)
+        """Revenue Focus: Maximize revenue by choosing the higher of (current rent, market median * 1.05). Returns (price, confidence)."""
+        filtered = self._filter_comparables(unit_data, comps_data, excluded_comp_ids)
         market = self._market_median(filtered)
         current_rent = unit_data['advertised_rent']
+        
         if market is None:
             logger.warning(f"No comparables for unit {unit_data.get('unit_id')}")
             return current_rent, None
-        suggested = round(market * 1.05)  # nearest dollar
+        
+        # Revenue optimization: take the MAXIMUM of current rent and market + 5%
+        # This ensures we never decrease rent when optimizing for revenue
+        market_premium = market * 1.05
+        suggested = max(current_rent, market_premium)
+        suggested = round(suggested)  # nearest dollar
+        
         confidence = self._confidence_from_count(len(filtered))
+        
+        logger.info(f"Revenue optimization for unit {unit_data.get('unit_id')}: "
+                   f"current=${current_rent}, market=${market:.0f}, "
+                   f"market+5%=${market_premium:.0f}, suggested=${suggested}")
+        
         return suggested, confidence
 
     def leaseup_optimization(
         self, 
         unit_data: Dict, 
-        comps_data: pd.DataFrame
+        comps_data: pd.DataFrame,
+        excluded_comp_ids: Optional[List[str]] = None
     ) -> Tuple[float, Optional[float]]:
-        """Quick Lease: 5% below market median. Returns (price, confidence)."""
-        filtered = self._filter_comparables(unit_data, comps_data)
+        """Quick Lease: 5% below market median for faster leasing. Returns (price, confidence)."""
+        filtered = self._filter_comparables(unit_data, comps_data, excluded_comp_ids)
         market = self._market_median(filtered)
         current_rent = unit_data['advertised_rent']
+        
         if market is None:
             logger.warning(f"No comparables for unit {unit_data.get('unit_id')}")
             return current_rent, None
+        
         suggested = round(market * 0.95)
         confidence = self._confidence_from_count(len(filtered))
+        
+        logger.info(f"Lease-up optimization for unit {unit_data.get('unit_id')}: "
+                   f"current=${current_rent}, market=${market:.0f}, "
+                   f"market-5%=${suggested}, change=${suggested - current_rent}")
+        
         return suggested, confidence
 
     def balanced_optimization(
         self, 
         unit_data: Dict, 
         comps_data: pd.DataFrame,
-        weight: float = 0.5
+        weight: float = 0.5,
+        excluded_comp_ids: Optional[List[str]] = None
     ) -> Tuple[float, Optional[float]]:
-        """Balanced: at market median. Returns (price, confidence)."""
-        filtered = self._filter_comparables(unit_data, comps_data)
+        """Balanced: Smart market positioning based on current vs market. Returns (price, confidence)."""
+        filtered = self._filter_comparables(unit_data, comps_data, excluded_comp_ids)
         market = self._market_median(filtered)
         current_rent = unit_data['advertised_rent']
+        
         if market is None:
             logger.warning(f"No comparables for unit {unit_data.get('unit_id')}")
             return current_rent, None
-        suggested = round(market * 1.00)
+        
+        # Balanced strategy: adjust toward market median, but don't make drastic changes
+        # If current rent is within 10% of market, stay at current
+        # Otherwise, move halfway to market median
+        market_ratio = current_rent / market if market > 0 else 1.0
+        
+        if 0.9 <= market_ratio <= 1.1:  # Within 10% of market
+            suggested = current_rent
+        elif current_rent < market:  # Below market, move up
+            suggested = current_rent + (market - current_rent) * 0.5
+        else:  # Above market, move down slightly
+            suggested = current_rent - (current_rent - market) * 0.3
+            
+        suggested = round(suggested)
         confidence = self._confidence_from_count(len(filtered))
+        
+        logger.info(f"Balanced optimization for unit {unit_data.get('unit_id')}: "
+                   f"current=${current_rent}, market=${market:.0f}, "
+                   f"ratio={market_ratio:.2f}, suggested=${suggested}")
+        
         return suggested, confidence
 
     def optimize_unit(
@@ -194,7 +241,8 @@ class PricingOptimizer:
         unit_data: Dict,
         comps_data: pd.DataFrame,
         strategy: OptimizationStrategy,
-        weight: Optional[float] = None
+        weight: Optional[float] = None,
+        excluded_comp_ids: Optional[List[str]] = None
     ) -> Dict:
         """
         Optimize a single unit using simplified strategy.
@@ -207,11 +255,11 @@ class PricingOptimizer:
 
         # Choose strategy
         if strategy == OptimizationStrategy.REVENUE:
-            suggested_rent, confidence = self.revenue_optimization(unit_data, comps_data)
+            suggested_rent, confidence = self.revenue_optimization(unit_data, comps_data, excluded_comp_ids)
         elif strategy == OptimizationStrategy.LEASE_UP:
-            suggested_rent, confidence = self.leaseup_optimization(unit_data, comps_data)
+            suggested_rent, confidence = self.leaseup_optimization(unit_data, comps_data, excluded_comp_ids)
         elif strategy == OptimizationStrategy.BALANCED:
-            suggested_rent, confidence = self.balanced_optimization(unit_data, comps_data, weight or 0.5)
+            suggested_rent, confidence = self.balanced_optimization(unit_data, comps_data, weight or 0.5, excluded_comp_ids)
         else:
             raise ValueError(f"Unknown optimization strategy: {strategy}")
 
@@ -228,7 +276,7 @@ class PricingOptimizer:
             revenue_impact_annual = rent_change * 12
 
             # Build comparable summary from filtered comps
-            filtered = self._filter_comparables(unit_data, comps_data)
+            filtered = self._filter_comparables(unit_data, comps_data, excluded_comp_ids)
             comp_data = {
                 'total_comps': int(len(filtered)),
                 'avg_comp_price': float(filtered['comp_price'].mean()) if 'comp_price' in filtered.columns and len(filtered) > 0 else 0.0,

@@ -3,7 +3,6 @@
 -- This should be refreshed nightly via scheduled query
 
 CREATE OR REPLACE TABLE `rentroll-ai.mart.unit_competitor_pairs` 
-CLUSTER BY (unit_id, bed, bath)
 AS
 WITH unit_comps AS (
   SELECT
@@ -42,7 +41,7 @@ WITH unit_comps AS (
   FROM `rentroll-ai.staging.our_units` u
   JOIN `rentroll-ai.staging.comps` c
   ON u.bed = c.bed  -- Exact bed match required
-  AND u.bath = c.bath  -- Exact bath match required
+  AND u.bath = CAST(c.bath AS INT64)  -- Convert comp bath to integer for matching
   AND ABS(u.sqft - c.sqft) / u.sqft <= 0.15  -- Within 15% sqft
 ),
 ranked_comps AS (

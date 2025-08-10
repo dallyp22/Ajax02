@@ -34,8 +34,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Check for existing authentication on app load
-    const checkAuth = () => {
+    const checkAuth = async () => {
       try {
+        // Add minimum loading time to show loading circle
+        const startTime = Date.now();
+        const minLoadTime = 800; // Show loading for at least 800ms
+        
         const authData = localStorage.getItem('rent_optimizer_auth');
         if (authData) {
           const userData = JSON.parse(authData);
@@ -51,6 +55,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             // Session expired
             localStorage.removeItem('rent_optimizer_auth');
           }
+        }
+        
+        // Ensure minimum loading time
+        const elapsed = Date.now() - startTime;
+        if (elapsed < minLoadTime) {
+          await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
         }
       } catch (error) {
         console.error('Error checking authentication:', error);

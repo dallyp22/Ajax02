@@ -62,6 +62,10 @@ class OptimizeRequest(BaseModel):
         default=None,
         description="Custom demand elasticity override"
     )
+    excluded_comp_ids: Optional[List[str]] = Field(
+        default=None,
+        description="List of comparable unit IDs to exclude from optimization"
+    )
 
 
 class BatchOptimizeRequest(BaseModel):
@@ -158,6 +162,11 @@ class OptimizeResponse(BaseModel):
     unit_id: str
     optimization: OptimizationResult
     generated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
 class BatchOptimizeResponse(BaseModel):

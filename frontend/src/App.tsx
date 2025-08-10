@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { Box, CircularProgress } from '@mui/material';
+import { Box, CircularProgress, Typography } from '@mui/material';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PropertySelectionProvider } from './contexts/PropertySelectionContext';
@@ -24,8 +24,44 @@ const AppContent: React.FC = () => {
           alignItems: 'center',
           minHeight: '100vh',
           background: 'linear-gradient(135deg, #1F1F23 0%, #1A1A1F 50%, #1F1F23 100%)',
+          flexDirection: 'column',
+          gap: 3,
         }}
       >
+        <Box
+          sx={{
+            width: 64,
+            height: 64,
+            borderRadius: '16px',
+            background: 'linear-gradient(135deg, #01D1D1 0%, #2A9D8F 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            mb: 2,
+            boxShadow: '0 8px 32px rgba(1, 209, 209, 0.3)',
+            position: 'relative',
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              inset: '-3px',
+              background: 'linear-gradient(135deg, #01D1D1, #2A9D8F)',
+              borderRadius: '19px',
+              zIndex: -1,
+              opacity: 0.3,
+              filter: 'blur(8px)',
+            },
+          }}
+        >
+          <Box
+            sx={{
+              fontSize: 32,
+              color: '#000',
+              fontWeight: 'bold',
+            }}
+          >
+            ⚡
+          </Box>
+        </Box>
         <CircularProgress 
           size={60} 
           sx={{
@@ -33,6 +69,30 @@ const AppContent: React.FC = () => {
             filter: 'drop-shadow(0 0 8px rgba(1, 209, 209, 0.8))',
           }}
         />
+        <Typography
+          variant="h5"
+          sx={{
+            fontWeight: 700,
+            background: 'linear-gradient(135deg, #01D1D1 0%, #2A9D8F 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            textAlign: 'center',
+          }}
+        >
+          AI Rent Optimizer
+        </Typography>
+        <Typography
+          variant="body1"
+          sx={{
+            color: 'rgba(255, 255, 255, 0.8)',
+            fontWeight: 500,
+            letterSpacing: '0.5px',
+            textAlign: 'center',
+          }}
+        >
+          Initializing Command Center...
+        </Typography>
       </Box>
     );
   }

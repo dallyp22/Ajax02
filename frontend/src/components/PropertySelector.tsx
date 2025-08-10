@@ -40,26 +40,81 @@ const PropertySelector: React.FC<PropertySelectorProps> = ({ open, onClose }) =>
     selectAll,
     deselectAll,
     isPropertySelected,
+    pendingProperties,
+    applyPendingChanges,
+    hasPendingChanges,
+    resetPendingChanges,
   } = usePropertySelection();
+
+  // Track modal open state changes for debugging
+  React.useEffect(() => {
+    if (open) {
+      console.log('🔄 PropertySelector modal opened');
+    } else {
+      console.log('❌ PropertySelector modal closed');
+    }
+  }, [open]);
 
   // Debug logging
   React.useEffect(() => {
     console.log('🏠 PropertySelector - All properties:', allProperties);
     console.log('✅ PropertySelector - Selected properties:', selectedProperties);
-  }, [allProperties, selectedProperties]);
+    console.log('⏳ PropertySelector - Pending properties:', pendingProperties);
+  }, [allProperties, selectedProperties, pendingProperties]);
+
+  // Prevent closing during property changes by using a ref
+  const isProcessingChange = React.useRef(false);
+
+  const handleToggleProperty = (property: string) => {
+    isProcessingChange.current = true;
+    console.log('🔄 Toggling property:', property);
+    toggleProperty(property);
+    
+    // Reset the flag after a small delay
+    setTimeout(() => {
+      isProcessingChange.current = false;
+    }, 100);
+  };
 
   const handleSelectAllToggle = () => {
+    isProcessingChange.current = true;
+    console.log('🔄 Toggle select all, current state:', isAllSelected);
     if (isAllSelected) {
       deselectAll();
     } else {
       selectAll();
     }
+    
+    setTimeout(() => {
+      isProcessingChange.current = false;
+    }, 100);
+  };
+
+  const handleApplyChanges = () => {
+    console.log('✅ Applying property changes');
+    applyPendingChanges();
+    onClose();
+  };
+
+  const handleCancelChanges = () => {
+    console.log('❌ Cancelling property changes');
+    resetPendingChanges();
+    onClose();
+  };
+
+  // Override onClose to prevent accidental closing during property changes
+  const handleClose = () => {
+    if (isProcessingChange.current) {
+      console.log('⚠️ Prevented modal close during property change');
+      return;
+    }
+    onClose();
   };
 
   return (
     <Dialog 
       open={open} 
-      onClose={onClose} 
+      onClose={handleClose} 
       maxWidth="md" 
       fullWidth
       PaperProps={{
@@ -87,18 +142,32 @@ const PropertySelector: React.FC<PropertySelectorProps> = ({ open, onClose }) =>
           <Typography variant="h6" component="span" sx={{ color: '#01D1D1', fontWeight: 600 }}>
             Property Selection
           </Typography>
-          <Chip
-            label={`${selectedProperties.length} of ${allProperties.length} selected`}
-            size="small"
-            sx={{
-              backgroundColor: 'rgba(1, 209, 209, 0.1)',
-              color: '#01D1D1',
-              border: '1px solid rgba(1, 209, 209, 0.3)',
-            }}
-          />
+          <Box display="flex" gap={1}>
+            <Chip
+              label={`${pendingProperties.length} selected`}
+              size="small"
+              sx={{
+                backgroundColor: hasPendingChanges ? 'rgba(244, 162, 97, 0.2)' : 'rgba(1, 209, 209, 0.1)',
+                color: hasPendingChanges ? '#F4A261' : '#01D1D1',
+                border: hasPendingChanges ? '1px solid rgba(244, 162, 97, 0.3)' : '1px solid rgba(1, 209, 209, 0.3)',
+              }}
+            />
+            {hasPendingChanges && (
+              <Chip
+                label="unsaved"
+                size="small"
+                sx={{
+                  backgroundColor: 'rgba(244, 162, 97, 0.1)',
+                  color: '#F4A261',
+                  border: '1px solid rgba(244, 162, 97, 0.3)',
+                  fontSize: '0.65rem',
+                }}
+              />
+            )}
+          </Box>
         </Box>
         <IconButton
-          onClick={onClose}
+          onClick={handleClose}
           sx={{
             color: '#888',
             '&:hover': {
@@ -128,7 +197,7 @@ const PropertySelector: React.FC<PropertySelectorProps> = ({ open, onClose }) =>
           </Typography>
           <Button
             startIcon={<SelectAllIcon />}
-            onClick={selectAll}
+            onClick={handleSelectAllToggle}
             disabled={isAllSelected}
             sx={{
               color: '#01D1D1',
@@ -178,12 +247,12 @@ const PropertySelector: React.FC<PropertySelectorProps> = ({ open, onClose }) =>
                 },
                 cursor: 'pointer',
               }}
-              onClick={() => toggleProperty(property)}
+              onClick={() => handleToggleProperty(property)}
             >
               <ListItemIcon>
                 <Checkbox
                   checked={isPropertySelected(property)}
-                  onChange={() => toggleProperty(property)}
+                  onChange={() => handleToggleProperty(property)}
                   sx={{
                     color: 'rgba(1, 209, 209, 0.5)',
                     '&.Mui-checked': {
@@ -237,25 +306,49 @@ const PropertySelector: React.FC<PropertySelectorProps> = ({ open, onClose }) =>
         }}
       >
         <Typography variant="body2" sx={{ color: '#888', flexGrow: 1 }}>
-          {selectedProperties.length > 0
-            ? `Analysis will include ${selectedProperties.length} propert${selectedProperties.length === 1 ? 'y' : 'ies'}`
+          {pendingProperties.length > 0
+            ? `Analysis will include ${pendingProperties.length} propert${pendingProperties.length === 1 ? 'y' : 'ies'}`
             : 'No properties selected - analysis will be empty'
           }
+          {hasPendingChanges && (
+            <span style={{ color: '#F4A261', fontWeight: 500 }}> • Changes pending</span>
+          )}
         </Typography>
         <Button
-          onClick={onClose}
-          variant="contained"
+          onClick={handleCancelChanges}
+          variant="outlined"
           sx={{
-            backgroundColor: '#01D1D1',
+            color: '#888',
+            borderColor: 'rgba(136, 136, 136, 0.3)',
+            fontWeight: 500,
+            px: 2,
+            '&:hover': {
+              borderColor: '#888',
+              backgroundColor: 'rgba(136, 136, 136, 0.1)',
+            },
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleApplyChanges}
+          variant="contained"
+          disabled={!hasPendingChanges}
+          sx={{
+            backgroundColor: hasPendingChanges ? '#01D1D1' : 'rgba(1, 209, 209, 0.3)',
             color: '#0F1419',
             fontWeight: 600,
             px: 3,
             '&:hover': {
-              backgroundColor: '#00B5B5',
+              backgroundColor: hasPendingChanges ? '#00B5B5' : 'rgba(1, 209, 209, 0.3)',
+            },
+            '&:disabled': {
+              backgroundColor: 'rgba(1, 209, 209, 0.1)',
+              color: 'rgba(0, 0, 0, 0.3)',
             },
           }}
         >
-          Apply Selection
+          {hasPendingChanges ? 'Apply Changes' : 'No Changes'}
         </Button>
       </DialogActions>
     </Dialog>

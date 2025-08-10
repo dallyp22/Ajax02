@@ -2,7 +2,8 @@
 -- Normalizes schema from rentroll-ai.rentroll.Update_7_8_native table
 CREATE OR REPLACE VIEW `rentroll-ai.staging.our_units` AS
 SELECT
-    Unit              AS unit_id,
+    CONCAT(Property, '_', Unit) AS unit_id,  -- Make unit_id unique across properties
+    Unit              AS unit_number,        -- Keep original unit number
     Property          AS property,
     Bedroom           AS bed,
     Bathrooms         AS bath,
@@ -13,14 +14,17 @@ SELECT
         WHEN Status = 'Current' THEN 'OCCUPIED'
         WHEN Status LIKE 'Notice-%' THEN 'NOTICE'
         WHEN Status LIKE 'Vacant-%' THEN 'VACANT'
+        WHEN Status = 'Evict' THEN 'VACANT'
         ELSE 'VACANT'
     END AS status,
+    Status AS raw_status,  -- Keep original for debugging
     FORMAT_DATE('%Y-%m-%d', Move_out) AS move_out_date,
     FORMAT_DATE('%Y-%m-%d', Lease_To) AS lease_end_date,
     -- Additional computed fields
     CASE 
-        WHEN Status LIKE 'Vacant-%' THEN TRUE
+        WHEN Status LIKE 'Vacant-%' OR Status = 'Evict' THEN TRUE
         WHEN Status = 'Current' AND DATE_DIFF(Lease_To, CURRENT_DATE(), DAY) <= 60 THEN TRUE
+        WHEN Status LIKE 'Notice-%' THEN TRUE
         ELSE FALSE
     END AS needs_pricing,
     CASE 

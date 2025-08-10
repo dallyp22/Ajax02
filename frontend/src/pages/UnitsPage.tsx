@@ -11,6 +11,7 @@ import {
   Paper,
   Stack,
   Tooltip as MuiTooltip,
+  CircularProgress,
 } from '@mui/material';
 import { DataGrid, GridColDef, GridRowParams } from '@mui/x-data-grid';
 import { Tune as OptimizeIcon, Refresh as RefreshIcon, FilterList as FilterListIcon } from '@mui/icons-material';
@@ -292,25 +293,69 @@ const UnitsPage: React.FC = () => {
 
       {/* Data Grid */}
       <Paper sx={{ height: 600, width: '100%' }}>
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          loading={isLoading}
-          pagination
-          paginationModel={{ page, pageSize }}
-          rowCount={unitsData?.total_count || 0}
-          paginationMode="server"
-          onPaginationModelChange={(model) => {
-            setPage(model.page);
-            setPageSize(model.pageSize);
-          }}
-          onRowClick={handleRowClick}
-          sx={{
-            '& .MuiDataGrid-row:hover': {
-              cursor: 'pointer',
-            },
-          }}
-        />
+        {isLoading ? (
+          <Box
+            sx={{
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            <CircularProgress 
+              size={60} 
+              sx={{
+                color: '#01D1D1',
+                filter: 'drop-shadow(0 0 8px rgba(1, 209, 209, 0.8))',
+              }}
+            />
+            <Typography
+              variant="body1"
+              sx={{
+                color: 'rgba(255, 255, 255, 0.8)',
+                fontWeight: 500,
+                letterSpacing: '0.5px',
+                textAlign: 'center',
+              }}
+            >
+              Loading units...
+            </Typography>
+            {selectedProperties.length > 0 && (
+              <Typography
+                variant="body2"
+                sx={{
+                  color: 'rgba(255, 255, 255, 0.6)',
+                  fontSize: '0.85rem',
+                  textAlign: 'center',
+                }}
+              >
+                From {selectedProperties.length} selected properties
+              </Typography>
+            )}
+          </Box>
+        ) : (
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            loading={isLoading}
+            pagination
+            paginationModel={{ page, pageSize }}
+            rowCount={unitsData?.total_count || 0}
+            paginationMode="server"
+            onPaginationModelChange={(model) => {
+              setPage(model.page);
+              setPageSize(model.pageSize);
+            }}
+            onRowClick={handleRowClick}
+            sx={{
+              '& .MuiDataGrid-row:hover': {
+                cursor: 'pointer',
+              },
+            }}
+          />
+        )}
       </Paper>
 
       {/* Optimization Modal */}

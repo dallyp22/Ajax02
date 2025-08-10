@@ -139,8 +139,47 @@ const DashboardPage: React.FC = () => {
 
   if (portfolioLoading) {
     return (
-      <Box p={3} display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress size={60} />
+      <Box 
+        sx={{ 
+          p: 3, 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '400px',
+          flexDirection: 'column',
+          gap: 2,
+        }}
+      >
+        <CircularProgress 
+          size={60} 
+          sx={{
+            color: '#01D1D1',
+            filter: 'drop-shadow(0 0 8px rgba(1, 209, 209, 0.8))',
+          }}
+        />
+        <Typography
+          variant="body1"
+          sx={{
+            color: 'rgba(255, 255, 255, 0.8)',
+            fontWeight: 500,
+            letterSpacing: '0.5px',
+            textAlign: 'center',
+          }}
+        >
+          Loading portfolio analytics...
+        </Typography>
+        {selectedProperties.length > 0 && (
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'rgba(255, 255, 255, 0.6)',
+              fontSize: '0.85rem',
+              textAlign: 'center',
+            }}
+          >
+            Analyzing {selectedProperties.length} properties
+          </Typography>
+        )}
       </Box>
     );
   }

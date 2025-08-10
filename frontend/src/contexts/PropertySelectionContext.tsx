@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
 interface PropertySelectionContextType {
   selectedProperties: string[];
@@ -10,6 +10,11 @@ interface PropertySelectionContextType {
   selectAll: () => void;
   deselectAll: () => void;
   isPropertySelected: (property: string) => boolean;
+  // Add internal state for immediate UI updates
+  pendingProperties: string[];
+  applyPendingChanges: () => void;
+  resetPendingChanges: () => void;
+  hasPendingChanges: boolean;
 }
 
 const PropertySelectionContext = createContext<PropertySelectionContextType | undefined>(undefined);
@@ -20,12 +25,31 @@ interface PropertySelectionProviderProps {
 
 export const PropertySelectionProvider: React.FC<PropertySelectionProviderProps> = ({ children }) => {
   const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
+  const [pendingProperties, setPendingProperties] = useState<string[]>([]);
   const [allProperties, setAllProperties] = useState<string[]>([]);
 
-  const isAllSelected = selectedProperties.length === allProperties.length && allProperties.length > 0;
+  const isAllSelected = pendingProperties.length === allProperties.length && allProperties.length > 0;
+  const hasPendingChanges = JSON.stringify(selectedProperties.sort()) !== JSON.stringify(pendingProperties.sort());
 
+  // Debounced update function
+  const applyPendingChanges = useCallback(() => {
+    if (hasPendingChanges) {
+      console.log('🔄 Applying property selection changes:', pendingProperties);
+      setSelectedProperties([...pendingProperties]);
+    }
+  }, [pendingProperties, hasPendingChanges]);
+
+  // Reset pending to match selected (for cancel operations)
+  const resetPendingChanges = useCallback(() => {
+    console.log('↩️ Resetting pending changes to:', selectedProperties);
+    setPendingProperties([...selectedProperties]);
+  }, [selectedProperties]);
+
+  // REMOVED: Auto-apply changes after 500ms - this was causing modal to close/reopen
+  // Instead, changes are only applied when user clicks "Apply" button
+  
   const toggleProperty = (property: string) => {
-    setSelectedProperties(prev => {
+    setPendingProperties(prev => {
       if (prev.includes(property)) {
         return prev.filter(p => p !== property);
       } else {
@@ -35,23 +59,32 @@ export const PropertySelectionProvider: React.FC<PropertySelectionProviderProps>
   };
 
   const selectAll = () => {
-    setSelectedProperties([...allProperties]);
+    setPendingProperties([...allProperties]);
   };
 
   const deselectAll = () => {
-    setSelectedProperties([]);
+    setPendingProperties([]);
   };
 
   const isPropertySelected = (property: string) => {
-    return selectedProperties.includes(property);
+    return pendingProperties.includes(property);
   };
 
   // Auto-select all properties when allProperties is first populated
   useEffect(() => {
-    if (allProperties.length > 0 && selectedProperties.length === 0) {
-      setSelectedProperties([...allProperties]);
+    if (allProperties.length > 0 && selectedProperties.length === 0 && pendingProperties.length === 0) {
+      const allPropertiesCopy = [...allProperties];
+      setSelectedProperties(allPropertiesCopy);
+      setPendingProperties(allPropertiesCopy);
     }
-  }, [allProperties]);
+  }, [allProperties, selectedProperties.length, pendingProperties.length]);
+
+  // Sync pending with selected when selected changes externally
+  useEffect(() => {
+    if (!hasPendingChanges && pendingProperties.length === 0 && selectedProperties.length > 0) {
+      setPendingProperties([...selectedProperties]);
+    }
+  }, [selectedProperties, hasPendingChanges, pendingProperties.length]);
 
   const value = {
     selectedProperties,
@@ -63,6 +96,10 @@ export const PropertySelectionProvider: React.FC<PropertySelectionProviderProps>
     selectAll,
     deselectAll,
     isPropertySelected,
+    pendingProperties,
+    applyPendingChanges,
+    hasPendingChanges,
+    resetPendingChanges,
   };
 
   return (

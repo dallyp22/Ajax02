@@ -40,6 +40,7 @@ export interface OptimizeRequest {
   strategy: OptimizationStrategy;
   weight?: number;
   custom_elasticity?: number;
+  excluded_comp_ids?: string[];
 }
 
 export interface BatchOptimizeRequest {

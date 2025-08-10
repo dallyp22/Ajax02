@@ -9,6 +9,22 @@ SELECT
         ELSE NULL
     END AS rent_premium_pct,
     
+    -- Market position categorization based on premium/discount
+    CASE 
+        WHEN u.market_rent IS NULL OR u.market_rent = 0 THEN 'UNKNOWN'
+        WHEN (u.advertised_rent - u.market_rent) / u.market_rent * 100 > 10 THEN 'PREMIUM'
+        WHEN (u.advertised_rent - u.market_rent) / u.market_rent * 100 > 5 THEN 'ABOVE_MARKET'
+        WHEN (u.advertised_rent - u.market_rent) / u.market_rent * 100 >= -5 THEN 'AT_MARKET'
+        WHEN (u.advertised_rent - u.market_rent) / u.market_rent * 100 >= -10 THEN 'BELOW_MARKET'
+        ELSE 'DISCOUNT'
+    END AS market_position,
+    
+    -- Premium/discount percentage for easier reference
+    CASE 
+        WHEN u.market_rent > 0 THEN (u.advertised_rent - u.market_rent) / u.market_rent * 100
+        ELSE NULL
+    END AS premium_discount_pct,
+    
     -- Urgency metrics
     CASE 
         WHEN u.status = 'VACANT' THEN 'IMMEDIATE'
