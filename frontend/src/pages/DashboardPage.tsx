@@ -963,14 +963,20 @@ const DashboardPage: React.FC = () => {
                         { name: 'MEDIUM', value: propertyUnitsData?.units?.filter(u => u.pricing_urgency === 'MEDIUM').length || 0 },
                         { name: 'LOW', value: propertyUnitsData?.units?.filter(u => u.pricing_urgency === 'LOW').length || 0 },
                       ]}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+                        <XAxis 
+                          dataKey="name" 
+                          tick={{ fill: '#FFFFFF' }}
+                          fontSize={12}
+                          fontWeight={600}
+                        />
+                        <YAxis tick={{ fill: '#FFFFFF' }} fontSize={12} />
                         <Tooltip />
                         <Bar dataKey="value" fill="#8884d8">
                           {[0, 1, 2, 3].map((index: number) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
+                          <LabelList dataKey="value" position="insideTop" fill="#FFFFFF" fontSize={10} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
