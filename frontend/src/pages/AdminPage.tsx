@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Box,
   Typography,
@@ -68,6 +69,7 @@ interface CreateUserForm {
 }
 
 const AdminPage: React.FC = () => {
+  const { getAccessTokenSilently } = useAuth();
   const [tabValue, setTabValue] = useState(0);
   const [clients, setClients] = useState<Client[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -101,7 +103,13 @@ const AdminPage: React.FC = () => {
   const loadClients = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8000/api/v1/admin/clients');
+      const token = await getAccessTokenSilently();
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/clients`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) throw new Error('Failed to load clients');
       const data = await response.json();
       setClients(data);
@@ -114,7 +122,13 @@ const AdminPage: React.FC = () => {
 
   const loadUsers = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/admin/users');
+      const token = await getAccessTokenSilently();
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/users`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
       if (!response.ok) throw new Error('Failed to load users');
       const data = await response.json();
       setUsers(data);
@@ -126,9 +140,13 @@ const AdminPage: React.FC = () => {
   const createClient = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8000/api/v1/admin/clients', {
+      const token = await getAccessTokenSilently();
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/clients`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(clientForm),
       });
       
@@ -152,9 +170,13 @@ const AdminPage: React.FC = () => {
   const createUser = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8000/api/v1/admin/users', {
+      const token = await getAccessTokenSilently();
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(userForm),
       });
       
@@ -179,9 +201,13 @@ const AdminPage: React.FC = () => {
 
   const updateClientStatus = async (clientId: string, status: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/admin/clients/${clientId}/status`, {
+      const token = await getAccessTokenSilently();
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/clients/${clientId}/status`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ status }),
       });
       
