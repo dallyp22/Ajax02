@@ -107,9 +107,33 @@ def get_public_key(token: str) -> str:
     
     for key in jwks.get("keys", []):
         if key.get("kid") == kid:
-            # Convert JWK to PEM format
-            from jwt.algorithms import RSAAlgorithm
-            public_key = RSAAlgorithm.from_jwk(key)
+            # Convert JWK to PEM format - handle different PyJWT versions
+            try:
+                # Try PyJWT 2.x approach
+                from jwt.algorithms import RSAAlgorithm
+                public_key = RSAAlgorithm.from_jwk(key)
+            except (ImportError, AttributeError):
+                try:
+                    # Try PyJWT 1.x approach
+                    from jwt.contrib.algorithms.rsa import RSAAlgorithm
+                    public_key = RSAAlgorithm.from_jwk(key)
+                except (ImportError, AttributeError):
+                    # Fallback: use cryptography directly
+                    from cryptography.hazmat.primitives import serialization
+                    from cryptography.hazmat.primitives.asymmetric import rsa
+                    import base64
+                    
+                    # Extract RSA components from JWK
+                    n = base64.urlsafe_b64decode(key['n'] + '==')
+                    e = base64.urlsafe_b64decode(key['e'] + '==')
+                    
+                    # Convert to integers
+                    n_int = int.from_bytes(n, 'big')
+                    e_int = int.from_bytes(e, 'big')
+                    
+                    # Create RSA public key
+                    public_numbers = rsa.RSAPublicNumbers(e_int, n_int)
+                    public_key = public_numbers.public_key()
             return public_key
     
     raise HTTPException(
