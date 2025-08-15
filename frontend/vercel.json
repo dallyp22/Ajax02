@@ -7,10 +7,10 @@
   "env": {
     "VITE_ENVIRONMENT": "production"
   },
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
