@@ -109,6 +109,10 @@ settings = Settings()
 if settings.google_application_credentials_base64:
     # Base64 encoded credentials (most reliable for Railway)
     try:
+        # Validate base64 format first
+        if len(settings.google_application_credentials_base64) < 100:
+            raise ValueError(f"Base64 credentials too short ({len(settings.google_application_credentials_base64)} chars). Expected >1000 chars for valid JSON.")
+        
         decoded_json = base64.b64decode(settings.google_application_credentials_base64).decode('utf-8')
         credentials_dict = json.loads(decoded_json)
         
@@ -129,7 +133,13 @@ if settings.google_application_credentials_base64:
             
     except Exception as e:
         print(f"❌ Failed to decode base64 credentials: {e}")
-        raise
+        print("💡 Instructions to fix:")
+        print("   1. Get your service account JSON file")
+        print("   2. Encode it with: base64 -i service-account.json | tr -d '\\n'")
+        print("   3. Copy the FULL base64 string (should be >1000 characters)")
+        print("   4. Set GOOGLE_APPLICATION_CREDENTIALS_BASE64 in Railway")
+        print(f"   Current value length: {len(settings.google_application_credentials_base64)} chars")
+        raise RuntimeError(f"Invalid base64 credentials. Check Railway environment variable.")
         
 elif settings.google_application_credentials_json:
     # Railway: JSON credentials provided as environment variable
