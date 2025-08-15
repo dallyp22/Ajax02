@@ -14,7 +14,7 @@ import MarketResearchPage from './pages/MarketResearchPage';
 import UploadsPage from './pages/UploadsPage';
 import AdminPage from './pages/AdminPage';
 import Auth0Debug from './components/Auth0Debug';
-import EnvDebug from './components/EnvDebug';
+
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, loginWithRedirect } = useAuth();
@@ -115,9 +115,8 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <Layout>
-      <EnvDebug />
-      <Routes>
+              <Layout>
+            <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/units" element={<UnitsPage />} />
