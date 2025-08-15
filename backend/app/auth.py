@@ -172,10 +172,23 @@ def verify_token(token: str) -> Dict[str, Any]:
         
         # Manual audience verification for multiple audiences
         token_audiences = payload.get("aud", [])
+        print(f"🔍 DEBUG: Raw token_audiences: {token_audiences} (type: {type(token_audiences)})")
+        
         if isinstance(token_audiences, str):
             token_audiences = [token_audiences]
         
-        if auth_config.api_audience not in token_audiences:
+        print(f"🔍 DEBUG: Processed token_audiences: {token_audiences}")
+        print(f"🔍 DEBUG: Looking for audience: '{auth_config.api_audience}'")
+        print(f"🔍 DEBUG: Audience check: {auth_config.api_audience in token_audiences}")
+        
+        # Check if our API audience is in the token audiences
+        audience_found = False
+        for aud in token_audiences:
+            if str(aud).strip() == str(auth_config.api_audience).strip():
+                audience_found = True
+                break
+        
+        if not audience_found:
             raise jwt.InvalidAudienceError(f"Expected audience {auth_config.api_audience}, got {token_audiences}")
         print(f"🔍 DEBUG: JWT decode successful")
         
