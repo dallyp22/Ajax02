@@ -121,4 +121,5 @@ railway.toml
 .nyc_output
 
 # Application specific settings that should not be shared
-app_settings.json 
+app_settings.json *-credentials.json
+docs/*.json

@@ -1,0 +1,6 @@
+{
+  "rentroll_table": "rentroll-ai.uploads.analytics_rent_roll",
+  "competition_table": "rentroll-ai.uploads.analytics_competition",
+  "archive_table": "rentroll-ai.rentroll.ArchiveAptMain",
+  "project_id": "rentroll-ai"
+}
