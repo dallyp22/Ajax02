@@ -119,21 +119,27 @@ def get_public_key(token: str) -> str:
                     public_key = RSAAlgorithm.from_jwk(key)
                 except (ImportError, AttributeError):
                     # Fallback: use cryptography directly
-                    from cryptography.hazmat.primitives import serialization
-                    from cryptography.hazmat.primitives.asymmetric import rsa
-                    import base64
-                    
-                    # Extract RSA components from JWK
-                    n = base64.urlsafe_b64decode(key['n'] + '==')
-                    e = base64.urlsafe_b64decode(key['e'] + '==')
-                    
-                    # Convert to integers
-                    n_int = int.from_bytes(n, 'big')
-                    e_int = int.from_bytes(e, 'big')
-                    
-                    # Create RSA public key
-                    public_numbers = rsa.RSAPublicNumbers(e_int, n_int)
-                    public_key = public_numbers.public_key()
+                    try:
+                        from cryptography.hazmat.primitives import serialization
+                        from cryptography.hazmat.primitives.asymmetric import rsa
+                        import base64
+                        
+                        # Extract RSA components from JWK
+                        n = base64.urlsafe_b64decode(key['n'] + '==')
+                        e = base64.urlsafe_b64decode(key['e'] + '==')
+                        
+                        # Convert to integers
+                        n_int = int.from_bytes(n, 'big')
+                        e_int = int.from_bytes(e, 'big')
+                        
+                        # Create RSA public key
+                        public_numbers = rsa.RSAPublicNumbers(e_int, n_int)
+                        public_key = public_numbers.public_key()
+                    except Exception as e:
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail=f"Failed to parse JWK: {str(e)}"
+                        )
             return public_key
     
     raise HTTPException(
