@@ -1202,6 +1202,36 @@ async def update_client_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/setup/system-tables")
+async def setup_system_tables_endpoint():
+    """One-time setup of system tables (No auth required for initial setup)."""
+    try:
+        import subprocess
+        import sys
+        import os
+        
+        # Run the setup script
+        script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "setup_system_tables.py")
+        result = subprocess.run([sys.executable, script_path], 
+                              capture_output=True, text=True, cwd=os.path.dirname(script_path))
+        
+        if result.returncode == 0:
+            return {
+                "status": "success", 
+                "message": "System tables created successfully",
+                "output": result.stdout
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Setup failed",
+                "error": result.stderr,
+                "output": result.stdout
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Setup failed: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
