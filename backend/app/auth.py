@@ -161,13 +161,22 @@ def verify_token(token: str) -> Dict[str, Any]:
         print(f"🔍 DEBUG: Public key retrieved successfully")
         
         # Verify and decode token
+        # Note: Auth0 tokens can have multiple audiences, so we verify manually
         payload = jwt.decode(
             token,
             public_key,
             algorithms=auth_config.algorithms,
-            audience=auth_config.api_audience,
-            issuer=auth_config.issuer
+            issuer=auth_config.issuer,
+            options={"verify_aud": False}  # We'll verify audience manually below
         )
+        
+        # Manual audience verification for multiple audiences
+        token_audiences = payload.get("aud", [])
+        if isinstance(token_audiences, str):
+            token_audiences = [token_audiences]
+        
+        if auth_config.api_audience not in token_audiences:
+            raise jwt.InvalidAudienceError(f"Expected audience {auth_config.api_audience}, got {token_audiences}")
         print(f"🔍 DEBUG: JWT decode successful")
         
         return payload
