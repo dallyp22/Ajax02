@@ -54,7 +54,10 @@ class AdminService:
         try:
             # Generate unique client ID and dataset name
             client_id = str(uuid.uuid4())
-            dataset_name = f"client_{client_id.replace('-', '_')}"
+            
+            # Create a sanitized company name for the dataset
+            sanitized_name = self._sanitize_dataset_name(request.client_name)
+            dataset_name = f"client_{sanitized_name}_{client_id.replace('-', '_')[:8]}"
             
             # 1. Create BigQuery dataset for the client
             await self._create_client_dataset(dataset_name)
@@ -85,6 +88,29 @@ class AdminService:
         except Exception as e:
             logger.error(f"Error creating client: {str(e)}")
             raise
+    
+    def _sanitize_dataset_name(self, name: str) -> str:
+        """Sanitize company name for BigQuery dataset naming"""
+        import re
+        
+        # Convert to lowercase and replace spaces/special chars with underscores
+        sanitized = re.sub(r'[^a-zA-Z0-9_]', '_', name.lower())
+        
+        # Remove multiple consecutive underscores
+        sanitized = re.sub(r'_+', '_', sanitized)
+        
+        # Remove leading/trailing underscores
+        sanitized = sanitized.strip('_')
+        
+        # Limit length to 20 characters for readability
+        if len(sanitized) > 20:
+            sanitized = sanitized[:20].rstrip('_')
+        
+        # Ensure it starts with a letter (BigQuery requirement)
+        if sanitized and not sanitized[0].isalpha():
+            sanitized = f"client_{sanitized}"
+        
+        return sanitized or "client"
     
     async def _create_client_dataset(self, dataset_name: str):
         """Create BigQuery dataset and tables for a new client"""
