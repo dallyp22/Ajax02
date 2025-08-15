@@ -169,6 +169,9 @@ def extract_user_context(payload: Dict[str, Any]) -> UserContext:
     # Auth0 custom claims are namespaced
     namespace = "https://rentroll-ai.com/"
     
+    # DEBUG: Log the entire payload to see what's available
+    print(f"🔍 DEBUG: Full JWT payload: {payload}")
+    
     # Extract basic user info
     user_id = payload.get("sub", "")
     email = payload.get("email", "")
@@ -177,9 +180,17 @@ def extract_user_context(payload: Dict[str, Any]) -> UserContext:
     roles = payload.get(f"{namespace}roles", [])
     client_id = payload.get(f"{namespace}client_id")
     
+    # DEBUG: Log what we extracted
+    print(f"🔍 DEBUG: Looking for namespace: {namespace}")
+    print(f"🔍 DEBUG: Found roles: {roles}")
+    print(f"🔍 DEBUG: Found client_id: {client_id}")
+    print(f"🔍 DEBUG: All payload keys: {list(payload.keys())}")
+    
     # Check if user is super admin
     is_super_admin = "super_admin" in roles
     is_client_admin = "client_admin" in roles or is_super_admin
+    
+    print(f"🔍 DEBUG: is_super_admin: {is_super_admin}")
     
     return UserContext(
         user_id=user_id,
