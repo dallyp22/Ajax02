@@ -1093,7 +1093,7 @@ async def refresh_analytics_tables():
 @app.post("/api/v1/admin/clients", response_model=ClientInfo)
 async def create_client(
     request: CreateClientRequest,
-    current_user: UserContext = Depends(get_current_user_dev)
+    current_user: UserContext = Depends(require_super_admin)
 ):
     """Create a new client (Super Admin only)"""
     if not current_user.is_super_admin:
@@ -1110,7 +1110,7 @@ async def create_client(
 
 @app.get("/api/v1/admin/clients", response_model=List[ClientInfo])
 async def list_clients(
-    current_user: UserContext = Depends(get_current_user_dev)
+    current_user: UserContext = Depends(require_super_admin)
 ):
     """List all clients (Super Admin only)"""
     if not current_user.is_super_admin:
@@ -1127,7 +1127,7 @@ async def list_clients(
 @app.get("/api/v1/admin/clients/{client_id}", response_model=ClientInfo)
 async def get_client(
     client_id: str,
-    current_user: UserContext = Depends(get_current_user_dev)
+    current_user: UserContext = Depends(require_super_admin)
 ):
     """Get specific client details (Super Admin only)"""
     if not current_user.is_super_admin:
@@ -1148,7 +1148,7 @@ async def get_client(
 @app.post("/api/v1/admin/users", response_model=UserInfo)
 async def create_user(
     request: CreateUserRequest,
-    current_user: UserContext = Depends(get_current_user_dev)
+    current_user: UserContext = Depends(require_super_admin)
 ):
     """Create a new user for a client (Super Admin only)"""
     if not current_user.is_super_admin:
@@ -1166,7 +1166,7 @@ async def create_user(
 @app.get("/api/v1/admin/users", response_model=List[UserInfo])
 async def list_users(
     client_id: Optional[str] = Query(None, description="Filter by client ID"),
-    current_user: UserContext = Depends(get_current_user_dev)
+    current_user: UserContext = Depends(require_super_admin)
 ):
     """List users, optionally filtered by client (Super Admin only)"""
     if not current_user.is_super_admin:
@@ -1184,7 +1184,7 @@ async def list_users(
 async def update_client_status(
     client_id: str,
     status: str,
-    current_user: UserContext = Depends(get_current_user_dev)
+    current_user: UserContext = Depends(require_super_admin)
 ):
     """Update client status (Super Admin only)"""
     if not current_user.is_super_admin:
