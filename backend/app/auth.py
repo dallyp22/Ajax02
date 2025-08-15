@@ -142,27 +142,33 @@ def verify_token(token: str) -> Dict[str, Any]:
         
         return payload
         
-    except jwt.ExpiredSignatureError:
+    except jwt.ExpiredSignatureError as e:
+        print(f"🔍 DEBUG: Token has expired: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired"
         )
-    except jwt.InvalidAudienceError:
+    except jwt.InvalidAudienceError as e:
+        print(f"🔍 DEBUG: Invalid audience error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid audience"
         )
-    except jwt.InvalidIssuerError:
+    except jwt.InvalidIssuerError as e:
+        print(f"🔍 DEBUG: Invalid issuer error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid issuer"
         )
     except jwt.InvalidTokenError as e:
+        print(f"🔍 DEBUG: Invalid token error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid token: {str(e)}"
         )
     except Exception as e:
+        print(f"🔍 DEBUG: General token verification error: {str(e)}")
+        print(f"🔍 DEBUG: Error type: {type(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Token verification failed: {str(e)}"
