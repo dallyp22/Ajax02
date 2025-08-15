@@ -48,8 +48,9 @@ GCP_LOCATION=US
 ENVIRONMENT=production
 DEBUG=false
 HOST=0.0.0.0
-PORT=$PORT
 API_PREFIX=/api/v1
+
+# NOTE: PORT is automatically provided by Railway - DO NOT SET IT
 
 # REQUIRED: CORS (update after Vercel deployment)
 CORS_ORIGINS=["https://your-app.vercel.app"]
