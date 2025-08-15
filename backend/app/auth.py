@@ -122,8 +122,13 @@ def verify_token(token: str) -> Dict[str, Any]:
     """Verify and decode JWT token."""
     
     try:
+        print(f"🔍 DEBUG: verify_token called")
+        print(f"🔍 DEBUG: Expected audience: {auth_config.api_audience}")
+        print(f"🔍 DEBUG: Expected issuer: {auth_config.issuer}")
+        
         # Get public key for verification
         public_key = get_public_key(token)
+        print(f"🔍 DEBUG: Public key retrieved successfully")
         
         # Verify and decode token
         payload = jwt.decode(
@@ -133,6 +138,7 @@ def verify_token(token: str) -> Dict[str, Any]:
             audience=auth_config.api_audience,
             issuer=auth_config.issuer
         )
+        print(f"🔍 DEBUG: JWT decode successful")
         
         return payload
         
@@ -217,11 +223,25 @@ async def get_current_user(
             return {"user_id": user.user_id, "client_id": user.client_id}
     """
     
-    token = credentials.credentials
-    payload = verify_token(token)
-    user_context = extract_user_context(payload)
-    
-    return user_context
+    try:
+        print(f"🔍 DEBUG: get_current_user called")
+        token = credentials.credentials
+        print(f"🔍 DEBUG: Token received (first 50 chars): {token[:50]}...")
+        
+        payload = verify_token(token)
+        print(f"🔍 DEBUG: Token verification successful")
+        
+        user_context = extract_user_context(payload)
+        print(f"🔍 DEBUG: User context extracted successfully")
+        
+        return user_context
+    except Exception as e:
+        print(f"🔍 DEBUG: Authentication failed with error: {str(e)}")
+        print(f"🔍 DEBUG: Error type: {type(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Authentication failed: {str(e)}"
+        )
 
 
 async def require_client_access(
