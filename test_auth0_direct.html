@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth0 Direct Test</title>
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1.3/auth0-spa-js.production.js"></script>
+</head>
+<body>
+    <h1>Direct Auth0 Test</h1>
+    <button id="login">Login</button>
+    <div id="result"></div>
+    
+    <script>
+        const auth0 = new auth0.Auth0Client({
+            domain: 'rentroll-ai.us.auth0.com',
+            clientId: 'JG7HW1d3wFq9JW1IGV36xkOwexP9IEhS',
+            authorizationParams: {
+                redirect_uri: 'http://localhost:3000/callback',
+                audience: 'https://api.rentroll-ai.com'
+            }
+        });
+
+        document.getElementById('login').addEventListener('click', async () => {
+            try {
+                console.log('Attempting login...');
+                await auth0.loginWithRedirect();
+            } catch (error) {
+                console.error('Login error:', error);
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+            }
+        });
+
+        // Check if we're handling a callback
+        if (window.location.search.includes('code=')) {
+            auth0.handleRedirectCallback().then(() => {
+                document.getElementById('result').innerHTML = 'Login successful!';
+            }).catch(error => {
+                console.error('Callback error:', error);
+                document.getElementById('result').innerHTML = 'Callback error: ' + error.message;
+            });
+        }
+    </script>
+</body>
+</html>

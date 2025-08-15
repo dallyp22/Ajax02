@@ -1,10 +1,14 @@
-# AI Rent Optimizer
+# AI Rent Optimizer - Multi-Tenant SaaS Platform
 
-A comprehensive web application for optimizing rental property pricing using competitive intelligence and market analysis.
+A sophisticated, multi-tenant SaaS platform for rental property management that leverages Google BigQuery for real-time competitive intelligence and AI-powered pricing optimization. Built for property management companies to optimize their rental pricing strategies with data-driven insights.
 
 ## Features
 
 ### 🎯 **Core Functionality**
+- **Multi-Tenant SaaS Architecture** - Complete client isolation with dedicated BigQuery datasets
+- **Super Admin Interface** - Client and user management with role-based access control (super_admin, client_admin, client_user)
+- **Auth0 Authentication** - Secure JWT-based authentication with role-based access
+- **Data Upload System** - Monthly rent roll and competition data uploads with historical tracking
 - **Real-time BigQuery Integration** - Connect to live rental and competition data
 - **Competitive Intelligence** - Deep analysis against market competitors
 - **Pricing Optimization** - Three strategies: Revenue Maximization, Lease-Up Speed, Balanced

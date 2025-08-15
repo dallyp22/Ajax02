@@ -8,7 +8,7 @@ import os
 import pandas as pd
 from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, UploadFile, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -25,7 +25,31 @@ from app.models import (
     OptimizationResult,
     UnitsListResponse,
 )
+from app.upload_models import (
+    UploadResponse,
+    UploadHistoryResponse,
+    UploadStatsResponse,
+    PropertyUploadSummary,
+    ValidationResult
+)
+from app.upload_service import upload_service
 from app.pricing import create_optimizer
+from app.admin_service import (
+    AdminService,
+    CreateClientRequest,
+    ClientInfo,
+    CreateUserRequest,
+    UserInfo,
+)
+from app.auth import (
+    UserContext,
+    get_current_user,
+    require_client_access,
+    require_super_admin,
+    require_client_admin,
+    get_client_context,
+    get_current_user_dev,  # For development without Auth0
+)
 from app.utils import CustomJSONEncoder, safe_json_response
 from pydantic import BaseModel
 
@@ -129,6 +153,9 @@ app.add_middleware(
 # Global pricing optimizer
 pricing_optimizer = create_optimizer()
 
+# Global admin service
+admin_service = AdminService()
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
@@ -157,6 +184,43 @@ async def health_check():
             "pricing_engine": "ready"
         }
     )
+
+
+# Authentication and User Management Endpoints
+
+@app.get("/auth/test")
+async def test_auth():
+    """Simple auth test endpoint."""
+    return {"status": "auth_system_working", "mode": "development"}
+
+@app.get("/auth/profile")
+async def get_user_profile(user: UserContext = Depends(get_current_user_dev)):
+    """Get current user profile and permissions."""
+    return {
+        "user_id": user.user_id,
+        "email": user.email,
+        "roles": user.roles,
+        "client_id": user.client_id,
+        "is_super_admin": user.is_super_admin,
+        "is_client_admin": user.is_client_admin,
+        "auth_status": "authenticated"
+    }
+
+
+@app.get("/auth/client-context")
+async def get_client_context_info(
+    user: UserContext = Depends(get_current_user_dev),
+    target_client_id: Optional[str] = Query(None, description="Specific client ID (super admin only)")
+):
+    """Get client context for data access."""
+    client_id = get_client_context(user, target_client_id)
+    
+    return {
+        "active_client_id": client_id,
+        "user_client_id": user.client_id,
+        "is_super_admin": user.is_super_admin,
+        "can_switch_clients": user.is_super_admin
+    }
 
 
 @app.get(f"{settings.api_prefix}/units", response_model=UnitsListResponse)
@@ -729,6 +793,412 @@ async def get_archive_recommendations():
         return SafeJSONResponse(content=result)
     except Exception as e:
         logger.error(f"Error in archive recommendations endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Upload Endpoints
+# ============================================================================
+
+@app.post("/api/v1/uploads/rent-roll")
+async def upload_rent_roll(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    property_id: str = Form(...),
+    data_month: str = Form(...),
+    user_id: str = Form(default="system")  # TODO: Extract from auth
+):
+    """
+    Upload monthly rent roll data.
+    
+    Args:
+        file: CSV file containing rent roll data
+        property_id: Property identifier
+        data_month: Data month in YYYY-MM format
+        user_id: User ID (extracted from auth in production)
+    
+    Returns:
+        Upload processing result
+    """
+    start_time = asyncio.get_event_loop().time()
+    
+    try:
+        # Validate file type
+        if not file.filename.lower().endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Only CSV files are supported")
+        
+        # Read file content
+        file_content = await file.read()
+        
+        if len(file_content) == 0:
+            raise HTTPException(status_code=400, detail="Empty file uploaded")
+        
+        # Process upload
+        result = await upload_service.process_upload(
+            file_content=file_content,
+            filename=file.filename,
+            file_type='rent_roll',
+            property_id=property_id,
+            data_month=data_month,
+            user_id=user_id
+        )
+        
+        processing_time = asyncio.get_event_loop().time() - start_time
+        
+        response_data = {
+            **result,
+            'processing_time_seconds': round(processing_time, 2),
+            'message': 'Rent roll data processed successfully' if result['success'] else 'Processing failed'
+        }
+        
+        return SafeJSONResponse(content=response_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in rent roll upload endpoint: {e}")
+        processing_time = asyncio.get_event_loop().time() - start_time
+        
+        error_response = {
+            'success': False,
+            'upload_id': '',
+            'message': f'Upload failed: {str(e)}',
+            'errors': [str(e)],
+            'warnings': [],
+            'processing_time_seconds': round(processing_time, 2)
+        }
+        
+        return SafeJSONResponse(content=error_response, status_code=500)
+
+
+@app.post("/api/v1/uploads/competition")
+async def upload_competition(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    property_id: str = Form(...),
+    data_month: str = Form(...),
+    user_id: str = Form(default="system")  # TODO: Extract from auth
+):
+    """
+    Upload monthly competition data.
+    
+    Args:
+        file: CSV file containing competition data
+        property_id: Property identifier
+        data_month: Data month in YYYY-MM format
+        user_id: User ID (extracted from auth in production)
+    
+    Returns:
+        Upload processing result
+    """
+    start_time = asyncio.get_event_loop().time()
+    
+    try:
+        # Validate file type
+        if not file.filename.lower().endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Only CSV files are supported")
+        
+        # Read file content
+        file_content = await file.read()
+        
+        if len(file_content) == 0:
+            raise HTTPException(status_code=400, detail="Empty file uploaded")
+        
+        # Process upload
+        result = await upload_service.process_upload(
+            file_content=file_content,
+            filename=file.filename,
+            file_type='competition',
+            property_id=property_id,
+            data_month=data_month,
+            user_id=user_id
+        )
+        
+        processing_time = asyncio.get_event_loop().time() - start_time
+        
+        response_data = {
+            **result,
+            'processing_time_seconds': round(processing_time, 2),
+            'message': 'Competition data processed successfully' if result['success'] else 'Processing failed'
+        }
+        
+        return SafeJSONResponse(content=response_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in competition upload endpoint: {e}")
+        processing_time = asyncio.get_event_loop().time() - start_time
+        
+        error_response = {
+            'success': False,
+            'upload_id': '',
+            'message': f'Upload failed: {str(e)}',
+            'errors': [str(e)],
+            'warnings': [],
+            'processing_time_seconds': round(processing_time, 2)
+        }
+        
+        return SafeJSONResponse(content=error_response, status_code=500)
+
+
+@app.get("/api/v1/uploads/history")
+async def get_upload_history(
+    property_id: Optional[str] = Query(None, description="Filter by property ID"),
+    file_type: Optional[str] = Query(None, description="Filter by file type (rent_roll or competition)"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of records to return")
+):
+    """
+    Get upload history with optional filtering.
+    
+    Args:
+        property_id: Optional property ID filter
+        file_type: Optional file type filter
+        limit: Maximum number of records to return
+    
+    Returns:
+        List of upload metadata records
+    """
+    try:
+        uploads = await upload_service.get_upload_history(
+            property_id=property_id,
+            file_type=file_type,
+            limit=limit
+        )
+        
+        response_data = {
+            'uploads': uploads,
+            'total_count': len(uploads),
+            'property_id_filter': property_id,
+            'file_type_filter': file_type
+        }
+        
+        return SafeJSONResponse(content=response_data)
+        
+    except Exception as e:
+        logger.error(f"Error in upload history endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/uploads/switch-to-uploads")
+async def switch_to_uploaded_data():
+    """Switch the analytics system to use uploaded data instead of static tables."""
+    try:
+        # Update table configuration to use uploaded data
+        new_settings = TableSettings(
+            rentroll_table=f"{settings.gcp_project_id}.uploads.analytics_rent_roll",
+            competition_table=f"{settings.gcp_project_id}.uploads.analytics_competition",
+            archive_table=f"{settings.gcp_project_id}.rentroll.ArchiveAptMain",  # Keep existing
+            project_id=settings.gcp_project_id
+        )
+        
+        # Save settings
+        global _current_settings
+        _current_settings = new_settings
+        
+        # Save to file for persistence
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(new_settings.dict(), f, indent=2)
+        
+        # Update database service
+        update_database_service_settings()
+        
+        logger.info("🔄 Switched to uploaded data analytics tables")
+        
+        return SafeJSONResponse(content={
+            'success': True,
+            'message': 'Successfully switched to uploaded data',
+            'settings': new_settings.dict()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error switching to uploaded data: {e}")
+        return SafeJSONResponse(
+            content={'error': f'Failed to switch to uploaded data: {str(e)}'},
+            status_code=500
+        )
+
+
+@app.post("/api/v1/uploads/switch-to-original")
+async def switch_to_original_data():
+    """Switch back to original static tables."""
+    try:
+        # Update table configuration to use original tables
+        new_settings = TableSettings(
+            rentroll_table=f"{settings.gcp_project_id}.rentroll.Update_7_8_native",
+            competition_table=f"{settings.gcp_project_id}.rentroll.Competition",
+            archive_table=f"{settings.gcp_project_id}.rentroll.ArchiveAptMain",
+            project_id=settings.gcp_project_id
+        )
+        
+        # Save settings
+        global _current_settings
+        _current_settings = new_settings
+        
+        # Save to file for persistence
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(new_settings.dict(), f, indent=2)
+        
+        # Update database service
+        update_database_service_settings()
+        
+        logger.info("🔄 Switched back to original analytics tables")
+        
+        return SafeJSONResponse(content={
+            'success': True,
+            'message': 'Successfully switched to original data',
+            'settings': new_settings.dict()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error switching to original data: {e}")
+        return SafeJSONResponse(
+            content={'error': f'Failed to switch to original data: {str(e)}'},
+            status_code=500
+        )
+
+
+@app.post("/api/v1/uploads/refresh-analytics")
+async def refresh_analytics_tables():
+    """Refresh analytics tables with latest uploaded data."""
+    try:
+        # Re-run the ETL pipeline to update analytics tables
+        from create_upload_to_analytics_pipeline import create_analytics_tables_from_uploads
+        
+        success = create_analytics_tables_from_uploads()
+        
+        if success:
+            return SafeJSONResponse(content={
+                'success': True,
+                'message': 'Analytics tables refreshed with latest uploads'
+            })
+        else:
+            return SafeJSONResponse(
+                content={'error': 'Failed to refresh analytics tables'},
+                status_code=500
+            )
+        
+    except Exception as e:
+        logger.error(f"Error refreshing analytics tables: {e}")
+        return SafeJSONResponse(
+            content={'error': f'Failed to refresh analytics tables: {str(e)}'},
+            status_code=500
+        )
+
+
+# ====================================
+# SUPER ADMIN ENDPOINTS
+# ====================================
+
+@app.post("/api/v1/admin/clients", response_model=ClientInfo)
+async def create_client(
+    request: CreateClientRequest,
+    current_user: UserContext = Depends(get_current_user_dev)
+):
+    """Create a new client (Super Admin only)"""
+    if not current_user.is_super_admin:
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    
+    try:
+        client = await admin_service.create_client(request)
+        logger.info(f"Super admin created client: {client.client_id}")
+        return client
+    except Exception as e:
+        logger.error(f"Error creating client: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/admin/clients", response_model=List[ClientInfo])
+async def list_clients(
+    current_user: UserContext = Depends(get_current_user_dev)
+):
+    """List all clients (Super Admin only)"""
+    if not current_user.is_super_admin:
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    
+    try:
+        clients = await admin_service.list_clients()
+        return clients
+    except Exception as e:
+        logger.error(f"Error listing clients: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/admin/clients/{client_id}", response_model=ClientInfo)
+async def get_client(
+    client_id: str,
+    current_user: UserContext = Depends(get_current_user_dev)
+):
+    """Get specific client details (Super Admin only)"""
+    if not current_user.is_super_admin:
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    
+    try:
+        client = await admin_service.get_client(client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        return client
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting client {client_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/admin/users", response_model=UserInfo)
+async def create_user(
+    request: CreateUserRequest,
+    current_user: UserContext = Depends(get_current_user_dev)
+):
+    """Create a new user for a client (Super Admin only)"""
+    if not current_user.is_super_admin:
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    
+    try:
+        user = await admin_service.create_user(request)
+        logger.info(f"Super admin created user: {user.user_id}")
+        return user
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/admin/users", response_model=List[UserInfo])
+async def list_users(
+    client_id: Optional[str] = Query(None, description="Filter by client ID"),
+    current_user: UserContext = Depends(get_current_user_dev)
+):
+    """List users, optionally filtered by client (Super Admin only)"""
+    if not current_user.is_super_admin:
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    
+    try:
+        users = await admin_service.list_users(client_id=client_id)
+        return users
+    except Exception as e:
+        logger.error(f"Error listing users: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/v1/admin/clients/{client_id}/status")
+async def update_client_status(
+    client_id: str,
+    status: str,
+    current_user: UserContext = Depends(get_current_user_dev)
+):
+    """Update client status (Super Admin only)"""
+    if not current_user.is_super_admin:
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    
+    if status not in ["active", "suspended", "inactive"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    try:
+        await admin_service.update_client_status(client_id, status)
+        logger.info(f"Super admin {current_user.sub} updated client {client_id} status to {status}")
+        return {"message": f"Client status updated to {status}"}
+    except Exception as e:
+        logger.error(f"Error updating client status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

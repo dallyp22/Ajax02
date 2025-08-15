@@ -11,9 +11,16 @@ import UnitsPage from './pages/UnitsPage';
 import SettingsPage from './pages/SettingsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import MarketResearchPage from './pages/MarketResearchPage';
+import UploadsPage from './pages/UploadsPage';
+import AdminPage from './pages/AdminPage';
+import Auth0Debug from './components/Auth0Debug';
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading, loginWithRedirect } = useAuth();
+  
+  // Development bypass for testing
+  const BYPASS_AUTH = import.meta.env.VITE_BYPASS_AUTH === 'true';
+  const isDevelopment = import.meta.env.VITE_ENVIRONMENT === 'development';
 
   if (isLoading) {
     return (
@@ -97,8 +104,13 @@ const AppContent: React.FC = () => {
     );
   }
 
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={login} />;
+  // Allow access to debug page without authentication
+  if (window.location.pathname === '/debug') {
+    return <Auth0Debug />;
+  }
+
+  if (!isAuthenticated && !BYPASS_AUTH) {
+    return <LoginPage onLogin={loginWithRedirect} />;
   }
 
   return (
@@ -110,6 +122,10 @@ const AppContent: React.FC = () => {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/market-research" element={<MarketResearchPage />} />
+        <Route path="/uploads" element={<UploadsPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/callback" element={<div>Loading...</div>} />
+        <Route path="/debug" element={<Auth0Debug />} />
       </Routes>
     </Layout>
   );

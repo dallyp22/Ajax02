@@ -35,6 +35,8 @@ import {
   CompareArrows as CompareArrowsIcon,
   Assessment as AssessmentIcon,
   Business as BusinessIcon,
+  CloudUpload as CloudUploadIcon,
+  SupervisorAccount as SupervisorAccountIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -132,6 +134,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard', description: 'Portfolio Overview' },
     { text: 'Units', icon: <Home />, path: '/units', description: 'Unit Management' },
     { text: 'Analytics', icon: <CompareArrowsIcon />, path: '/analytics', description: 'Competitive Intelligence' },
+    { text: 'Uploads', icon: <CloudUploadIcon />, path: '/uploads', description: 'Monthly Data Uploads' },
+    // Super Admin only
+    ...(true ? [{ text: 'Super Admin', icon: <SupervisorAccountIcon />, path: '/admin', description: 'Client Management' }] : []),
     // Removed Market Research and Settings from sidebar; moved to admin dropdown
   ];
 

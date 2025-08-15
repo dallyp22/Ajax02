@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     host: str = Field(default="0.0.0.0", description="Host to bind to")
     port: int = Field(default=8000, description="Port to bind to")
     
+    # Auth0 Configuration
+    auth0_domain: Optional[str] = Field(default=None, description="Auth0 domain")
+    auth0_api_audience: Optional[str] = Field(default=None, description="Auth0 API audience")
+    auth0_issuer: Optional[str] = Field(default=None, description="Auth0 issuer URL")
+    
+    # Application Environment
+    environment: str = Field(default="development", description="Environment (development/production)")
+    cors_origins: str = Field(default='["http://localhost:3000", "http://localhost:5173"]', description="CORS origins as JSON string")
+    
     # Google Cloud
     gcp_project_id: str = Field(default="rentroll-ai", description="GCP project ID")
     google_application_credentials: Optional[str] = Field(
@@ -86,6 +95,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "allow"  # Allow extra fields for Auth0 config
         
     def get_bigquery_table_name(self, dataset: str, table: str) -> str:
         """Get fully qualified BigQuery table name."""

@@ -3,19 +3,15 @@ import {
   Box,
   Card,
   CardContent,
-  TextField,
   Button,
   Typography,
-  Alert,
-  InputAdornment,
-  IconButton,
   Avatar,
+  Chip,
 } from '@mui/material';
 import {
-  Visibility,
-  VisibilityOff,
   Speed as SpeedIcon,
   Login as LoginIcon,
+  Security as SecurityIcon,
 } from '@mui/icons-material';
 
 interface LoginPageProps {
@@ -23,55 +19,16 @@ interface LoginPageProps {
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
-  const [credentials, setCredentials] = useState({
-    username: '',
-    password: '',
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Simple team credentials - in production, this would be handled by a proper auth service
-  const validCredentials = [
-    { username: 'admin', password: 'rentroll2024', role: 'Administrator' },
-    { username: 'dallas', password: 'optimizer', role: 'Manager' },
-    { username: 'team', password: 'demo123', role: 'Analyst' },
-    { username: 'demo', password: 'demo', role: 'Viewer' },
-  ];
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
     setLoading(true);
-    setError('');
-
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const user = validCredentials.find(
-      cred => cred.username === credentials.username && cred.password === credentials.password
-    );
-
-    if (user) {
-      localStorage.setItem('rent_optimizer_auth', JSON.stringify({
-        username: user.username,
-        role: user.role,
-        loginTime: new Date().toISOString(),
-      }));
-      onLogin();
-    } else {
-      setError('Invalid credentials. Please try again.');
+    try {
+      await onLogin(); // This will trigger Auth0 redirect
+    } catch (error) {
+      console.error('Login error:', error);
+      setLoading(false);
     }
-    
-    setLoading(false);
-  };
-
-  const handleInputChange = (field: keyof typeof credentials) => (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    setCredentials(prev => ({
-      ...prev,
-      [field]: event.target.value,
-    }));
   };
 
   return (
@@ -174,112 +131,74 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </Typography>
           </Box>
 
-          {/* Login Form */}
-          <Box component="form" onSubmit={handleSubmit}>
-            <TextField
-              fullWidth
-              label="Username"
-              value={credentials.username}
-              onChange={handleInputChange('username')}
-              margin="normal"
-              required
-              autoComplete="username"
+          {/* Auth0 Login */}
+          <Box sx={{ mb: 3 }}>
+            <Typography
+              variant="body2"
               sx={{
-                '& .MuiOutlinedInput-root': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(1, 209, 209, 0.5)',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#01D1D1',
-                    boxShadow: '0 0 10px rgba(1, 209, 209, 0.3)',
-                  },
-                },
-              }}
-            />
-
-            <TextField
-              fullWidth
-              label="Password"
-              type={showPassword ? 'text' : 'password'}
-              value={credentials.password}
-              onChange={handleInputChange('password')}
-              margin="normal"
-              required
-              autoComplete="current-password"
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowPassword(!showPassword)}
-                      edge="end"
-                      sx={{ color: 'rgba(255, 255, 255, 0.7)' }}
-                    >
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(1, 209, 209, 0.5)',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#01D1D1',
-                    boxShadow: '0 0 10px rgba(1, 209, 209, 0.3)',
-                  },
-                },
-              }}
-            />
-
-            {error && (
-              <Alert
-                severity="error"
-                sx={{
-                  mt: 2,
-                  backgroundColor: 'rgba(231, 111, 81, 0.15)',
-                  border: '1px solid rgba(231, 111, 81, 0.3)',
-                  borderRadius: '8px',
-                }}
-              >
-                {error}
-              </Alert>
-            )}
-
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              disabled={loading}
-              startIcon={<LoginIcon />}
-              sx={{
-                mt: 3,
+                color: 'rgba(255, 255, 255, 0.7)',
+                textAlign: 'center',
                 mb: 2,
-                py: 1.5,
-                fontSize: '1rem',
-                fontWeight: 600,
-                background: loading 
-                  ? 'rgba(1, 209, 209, 0.3)' 
-                  : 'linear-gradient(135deg, #01D1D1 0%, #2A9D8F 100%)',
-                color: '#000',
-                borderRadius: '12px',
-                boxShadow: '0 8px 24px rgba(1, 209, 209, 0.3)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #33D9D9 0%, #4DB3A3 100%)',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 12px 32px rgba(1, 209, 209, 0.4)',
-                },
-                '&:disabled': {
-                  background: 'rgba(1, 209, 209, 0.3)',
-                  color: 'rgba(0, 0, 0, 0.5)',
-                },
               }}
             >
-              {loading ? 'Authenticating...' : 'Access Command Center'}
-            </Button>
+              Secure Enterprise Authentication
+            </Typography>
+            
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 3 }}>
+              <Chip
+                icon={<SecurityIcon />}
+                label="Auth0 Protected"
+                size="small"
+                sx={{
+                  backgroundColor: 'rgba(1, 209, 209, 0.1)',
+                  color: '#01D1D1',
+                  border: '1px solid rgba(1, 209, 209, 0.3)',
+                }}
+              />
+            </Box>
           </Box>
+
+          <Button
+            fullWidth
+            variant="contained"
+            disabled={loading}
+            startIcon={<LoginIcon />}
+            onClick={handleLogin}
+            sx={{
+              py: 1.5,
+              fontSize: '1rem',
+              fontWeight: 600,
+              background: loading 
+                ? 'rgba(1, 209, 209, 0.3)' 
+                : 'linear-gradient(135deg, #01D1D1 0%, #2A9D8F 100%)',
+              color: '#000',
+              borderRadius: '12px',
+              boxShadow: '0 8px 24px rgba(1, 209, 209, 0.3)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #33D9D9 0%, #4DB3A3 100%)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 12px 32px rgba(1, 209, 209, 0.4)',
+              },
+              '&:disabled': {
+                background: 'rgba(1, 209, 209, 0.3)',
+                color: 'rgba(0, 0, 0, 0.5)',
+              },
+            }}
+          >
+            {loading ? 'Redirecting to Auth0...' : 'Sign In with Auth0'}
+          </Button>
+          
+          <Typography
+            variant="caption"
+            sx={{
+              display: 'block',
+              textAlign: 'center',
+              color: 'rgba(255, 255, 255, 0.5)',
+              mt: 2,
+            }}
+          >
+            Multi-Tenant SaaS Platform • Secure Data Isolation
+          </Typography>
         </CardContent>
       </Card>
     </Box>
