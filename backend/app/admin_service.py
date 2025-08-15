@@ -188,6 +188,15 @@ class AdminService:
             clients = []
             
             for row in results:
+                # Parse metadata JSON string to dict
+                metadata = row.metadata
+                if isinstance(metadata, str):
+                    import json
+                    try:
+                        metadata = json.loads(metadata)
+                    except (json.JSONDecodeError, TypeError):
+                        metadata = {}
+                
                 clients.append(ClientInfo(
                     client_id=row.client_id,
                     client_name=row.client_name,
@@ -196,7 +205,7 @@ class AdminService:
                     dataset_name=row.dataset_name,
                     created_at=row.created_at,
                     is_active=row.is_active,
-                    metadata=row.metadata
+                    metadata=metadata
                 ))
             
             return clients
